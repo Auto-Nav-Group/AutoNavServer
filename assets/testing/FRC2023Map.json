@@ -1,0 +1,91 @@
+[
+  {
+    "sizex": 15,
+    "sizey": 7,
+    "displayedImgPath": "G:\\Projects\\Robotics\\AutoNavEditor\\SampleField.png"
+  },
+  [
+    [
+      {
+        "name": "N/A",
+        "width": 0.08488372,
+        "height": 0.33139536,
+        "rotationangle": 0,
+        "locationx": 0.00058139535,
+        "locationy": 0.15174419
+      },
+      {
+        "name": "N/A",
+        "width": 0.13313954,
+        "height": 0.023837209,
+        "rotationangle": 0,
+        "locationx": 0.06802326,
+        "locationy": 0.14069767
+      },
+      {
+        "name": "N/A",
+        "width": 0.13139535,
+        "height": 0.022674419,
+        "rotationangle": 0,
+        "locationx": 0.8005814,
+        "locationy": 0.14069767
+      },
+      {
+        "name": "N/A",
+        "width": 0.08430233,
+        "height": 0.33023256,
+        "rotationangle": 0,
+        "locationx": 0.9156977,
+        "locationy": 0.15348837
+      },
+      {
+        "name": "N/A",
+        "width": 0.119186044,
+        "height": 0.15174419,
+        "rotationangle": 0,
+        "locationx": 0.7046512,
+        "locationy": 0.24069767
+      },
+      {
+        "name": "N/A",
+        "width": 0.022093024,
+        "height": 0.1494186,
+        "rotationangle": 0,
+        "locationx": 0.977907,
+        "locationy": 0.0040697674
+      },
+      {
+        "name": "N/A",
+        "width": 0.022674419,
+        "height": 0.14825581,
+        "rotationangle": 0,
+        "locationx": -0.0011627907,
+        "locationy": 0.0029069767
+      },
+      {
+        "name": "N/A",
+        "width": 0.82848835,
+        "height": 0.001744186,
+        "rotationangle": 0,
+        "locationx": 0.08546512,
+        "locationy": 0.48139533
+      },
+      {
+        "name": "N/A",
+        "width": 0.9994186,
+        "height": 0.001744186,
+        "rotationangle": 0,
+        "locationx": 0.00058139535,
+        "locationy": 0
+      },
+      {
+        "name": "N/A",
+        "width": 0.115697674,
+        "height": 0.14709303,
+        "rotationangle": 0,
+        "locationx": 0.1767442,
+        "locationy": 0.24534884
+      }
+    ]
+  ]
+]
