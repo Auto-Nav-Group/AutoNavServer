@@ -10,67 +10,67 @@
     [
       {
         "name": "N/A",
-        "width": 1.7790698,
-        "height": 2.2412791,
+        "width": 1.9804688,
+        "height": 0.3515625,
         "rotationangle": 0,
-        "locationx": 2.6337209,
-        "locationy": 3.6627908
+        "locationx": 1.0195312,
+        "locationy": 2.109375
       },
       {
         "name": "N/A",
-        "width": 1.7703489,
-        "height": 2.2412791,
+        "width": 1.265625,
+        "height": 4.9804688,
         "rotationangle": 0,
-        "locationx": 10.59593,
-        "locationy": 3.65407
+        "locationx": -0.01171875,
+        "locationy": 2.296875
       },
       {
         "name": "N/A",
-        "width": 0.3139535,
-        "height": 2.2848837,
+        "width": 0.31640625,
+        "height": 2.2617188,
         "rotationangle": 0,
-        "locationx": -0.008720931,
-        "locationy": -0.017441861
+        "locationx": -0.01171875,
+        "locationy": 0
       },
       {
         "name": "N/A",
-        "width": 1.9883721,
-        "height": 0.375,
+        "width": 1.78125,
+        "height": 2.2734375,
         "rotationangle": 0,
-        "locationx": 1.0203489,
-        "locationy": 2.1017442
+        "locationx": 2.625,
+        "locationy": 3.6445312
       },
       {
         "name": "N/A",
-        "width": 1.3081396,
-        "height": 4.9709306,
+        "width": 1.7460938,
+        "height": 2.2148438,
         "rotationangle": 0,
-        "locationx": -0.026162792,
-        "locationy": 2.3023257
+        "locationx": 10.59375,
+        "locationy": 3.6679688
       },
       {
         "name": "N/A",
-        "width": 1.264535,
-        "height": 4.962209,
+        "width": 1.9570312,
+        "height": 0.36328125,
         "rotationangle": 0,
-        "locationx": 13.726745,
-        "locationy": 2.2936046
+        "locationx": 11.988281,
+        "locationy": 2.0859375
       },
       {
         "name": "N/A",
-        "width": 1.9883721,
-        "height": 0.3401163,
+        "width": 0.33984375,
+        "height": 2.2265625,
         "rotationangle": 0,
-        "locationx": 11.99128,
-        "locationy": 2.110465
+        "locationx": 14.671875,
+        "locationy": 0.03515625
       },
       {
         "name": "N/A",
-        "width": 0.32267442,
-        "height": 2.2238374,
+        "width": 1.2773438,
+        "height": 4.96875,
         "rotationangle": 0,
-        "locationx": 14.677326,
-        "locationy": 0.052325584
+        "locationx": 13.722656,
+        "locationy": 2.2851562
       }
     ]
   ]

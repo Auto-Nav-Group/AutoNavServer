@@ -42,60 +42,6 @@ class Map:
         if point.x>self.size.width or point.x<0 or point.y>self.size.height or point.y<0:
             return True
         return False
-class NodeGraph:
-
-    def __init__(self):
-        self.nodes = []
-        self.edges = []
-    def createFromMap(self, map):
-        currentTime = time.time()
-        for i in range(len(map.obstacles)):
-            pt1 = Point(map.obstacles[i].Loc.x-map.robotSize.width/2, map.obstacles[i].Loc.y-map.robotSize.height/2)
-            pt2 = Point(map.obstacles[i].Loc.x+map.robotSize.width/2 + map.obstacles[i].Size.width, map.obstacles[i].Loc.y-map.robotSize.height/2)
-            pt3 = Point(map.obstacles[i].Loc.x-map.robotSize.width/2, map.obstacles[i].Loc.y+map.robotSize.height/2 + map.obstacles[i].Size.height)
-            pt4 = Point(map.obstacles[i].Loc.x+map.robotSize.width/2 + map.obstacles[i].Size.width, map.obstacles[i].Loc.y+map.robotSize.height/2 + map.obstacles[i].Size.height)
-            if not map.isOutsideMap(pt1):
-                self.nodes.append(self.Node(pt1))
-            if not map.isOutsideMap(pt2):
-                self.nodes.append(self.Node(pt2))
-            if not map.isOutsideMap(pt3):
-                self.nodes.append(self.Node(pt3))
-            if not map.isOutsideMap(pt4):
-                self.nodes.append(self.Node(pt4))
-        for i in range(len(self.nodes)):
-            for j in range(len(self.nodes)):
-                if i != j:
-                    intersected = False
-                    for k in range(len(map.obstacles)):
-                        if LineIntersectsRect(self.nodes[i].Loc, self.nodes[j].Loc, map.obstacles[k].Loc, map.obstacles[k].Size):
-                            intersected = True
-                    if not intersected:
-                        edge = self.Edge(self.nodes[i], self.nodes[j], self.nodes[i].Loc.distance(self.nodes[j].Loc))
-                        self.nodes[i].Edges.append(edge)
-                        self.nodes[j].Edges.append(edge)# TODO: Edge is double counted
-                        self.edges.append(edge)
-        print("Created node map of nodes: " + str(len(self.nodes)) + " and edges: " + str(len(self.edges)) + " in " + str(time.time()-currentTime) + " seconds")
-
-    def createJSON(self, path):
-        towrite = {
-            "edges" : [self.edges]
-        }
-
-        json_obj = json.dumps(towrite, indent=4, default=lambda o: o.__dict__)
-
-        with open(path, "w") as outfile:
-            outfile.write(json_obj)
-
-    class Node:
-        def __init__(self, Location):
-            self.Loc = Location
-            self.Edges = []
-    class Edge:
-        def __init__(self, node1, node2, weight):
-            self.startloc = node1.Loc
-            self.endloc = node2.Loc
-            self.weight = weight
-
 def LineIntersectsRect(line_start, line_end, rect_position, rect_size):
     def on_segment(p, q, r):
         return (q.x <= max(p.x, r.x) and q.x >= min(p.x, r.x) and

@@ -1,5 +1,7 @@
 import json
-from maphandler import Map, NodeGraph
+from map import Map
+from nodegraph import NodeGraph
+from pathfinder import PathFinder
 
 path = 'G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\FRC2023Map.json'
 
@@ -10,3 +12,6 @@ GRAPH = NodeGraph()
 GRAPH.createFromMap(map)
 
 GRAPH.createJSON("G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\OUTPUTNODEGRAPH.json")
+pathfinder = PathFinder(GRAPH)
+
+pathfinder.DEBUG_benchmarkrecalculate()
