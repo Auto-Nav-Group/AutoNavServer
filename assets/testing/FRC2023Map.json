@@ -2,89 +2,75 @@
   {
     "sizex": 15,
     "sizey": 7,
-    "displayedImgPath": "G:\\Projects\\Robotics\\AutoNavEditor\\SampleField.png"
+    "displayedImgPath": "G:\\Projects\\AutoNav\\AutoNavEditor\\SampleField.png",
+    "robotWidth": 1,
+    "robotHeight": 1
   },
   [
     [
       {
         "name": "N/A",
-        "width": 0.08488372,
-        "height": 0.33139536,
+        "width": 1.7790698,
+        "height": 2.2412791,
         "rotationangle": 0,
-        "locationx": 0.00058139535,
-        "locationy": 0.15174419
+        "locationx": 2.6337209,
+        "locationy": 3.6627908
       },
       {
         "name": "N/A",
-        "width": 0.13313954,
-        "height": 0.023837209,
+        "width": 1.7703489,
+        "height": 2.2412791,
         "rotationangle": 0,
-        "locationx": 0.06802326,
-        "locationy": 0.14069767
+        "locationx": 10.59593,
+        "locationy": 3.65407
       },
       {
         "name": "N/A",
-        "width": 0.13139535,
-        "height": 0.022674419,
+        "width": 0.3139535,
+        "height": 2.2848837,
         "rotationangle": 0,
-        "locationx": 0.8005814,
-        "locationy": 0.14069767
+        "locationx": -0.008720931,
+        "locationy": -0.017441861
       },
       {
         "name": "N/A",
-        "width": 0.08430233,
-        "height": 0.33023256,
+        "width": 1.9883721,
+        "height": 0.375,
         "rotationangle": 0,
-        "locationx": 0.9156977,
-        "locationy": 0.15348837
+        "locationx": 1.0203489,
+        "locationy": 2.1017442
       },
       {
         "name": "N/A",
-        "width": 0.119186044,
-        "height": 0.15174419,
+        "width": 1.3081396,
+        "height": 4.9709306,
         "rotationangle": 0,
-        "locationx": 0.7046512,
-        "locationy": 0.24069767
+        "locationx": -0.026162792,
+        "locationy": 2.3023257
       },
       {
         "name": "N/A",
-        "width": 0.022093024,
-        "height": 0.1494186,
+        "width": 1.264535,
+        "height": 4.962209,
         "rotationangle": 0,
-        "locationx": 0.977907,
-        "locationy": 0.0040697674
+        "locationx": 13.726745,
+        "locationy": 2.2936046
       },
       {
         "name": "N/A",
-        "width": 0.022674419,
-        "height": 0.14825581,
+        "width": 1.9883721,
+        "height": 0.3401163,
         "rotationangle": 0,
-        "locationx": -0.0011627907,
-        "locationy": 0.0029069767
+        "locationx": 11.99128,
+        "locationy": 2.110465
       },
       {
         "name": "N/A",
-        "width": 0.82848835,
-        "height": 0.001744186,
+        "width": 0.32267442,
+        "height": 2.2238374,
         "rotationangle": 0,
-        "locationx": 0.08546512,
-        "locationy": 0.48139533
-      },
-      {
-        "name": "N/A",
-        "width": 0.9994186,
-        "height": 0.001744186,
-        "rotationangle": 0,
-        "locationx": 0.00058139535,
-        "locationy": 0
-      },
-      {
-        "name": "N/A",
-        "width": 0.115697674,
-        "height": 0.14709303,
-        "rotationangle": 0,
-        "locationx": 0.1767442,
-        "locationy": 0.24534884
+        "locationx": 14.677326,
+        "locationy": 0.052325584
       }
     ]
   ]
