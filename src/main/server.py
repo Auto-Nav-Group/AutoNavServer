@@ -1,8 +1,8 @@
 from json import loads
 from nodegraph import NodeGraph
 from pathfinder import PathFinder
-from http.server import HTTPServer
-from utils import StringToVar
+from http.server import HTTPServer, ThreadingHTTPServer
+from utils import JSONtoOBJ
 from map import Map
 import json
 import http.server
@@ -42,9 +42,9 @@ class JSONHandler(http.server.BaseHTTPRequestHandler):
         print("Received JSON data:")
         responsejson = None
         self.send_response(200)
-        self.send_header('Content-type', 'application/json')
+        self.send_header('Content-type', 'text/plain')
         self.end_headers()
-        self.wfile.write()
+        self.wfile.write(b"Received JSON data successfully")
     def do_GET(self):
         data = None
         try:
@@ -58,7 +58,7 @@ class JSONHandler(http.server.BaseHTTPRequestHandler):
         if command in self.commands:
             for header in self.headers:
                 if header in self.vars:
-                    self.vars[header] = StringToVar(self.headers[header])
+                    self.vars[header] = JSONtoOBJ(self.headers[header])
             data = json.dumps(self.commands[command](), default=lambda o: o.__dict__)
         self.send_response(200, message=None)
         self.send_header('Content-type', 'application/json')
@@ -70,8 +70,10 @@ class JSONHandler(http.server.BaseHTTPRequestHandler):
 
 def run_server(address, port):
     try:
-        with HTTPServer((address, port), JSONHandler) as httpd:
+        with ThreadingHTTPServer((address, port), JSONHandler) as httpd:
             httpd.serve_forever()
         return httpd
     except Exception as e:
         print('Failed to run server. Exception '+str(e))
+if __name__ == "__main__":
+    run_server('localhost', 8000)

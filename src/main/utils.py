@@ -1,3 +1,6 @@
+
+
+
 class Geometry:
     def LineIntersectsRect(line_start, line_end, rect_position, rect_size):
         def on_segment(p, q, r):
@@ -71,15 +74,9 @@ class Geometry:
             self.Size = Size
             self.Rot = Rot
 
-def StringToVar(string):
-    from nodegraph import NodeGraph
-    StringVar = {
-        'NODE': NodeGraph.Node,
-    }
-    stringarr = string.split(';')
-    typeofvar = stringarr[0].split(':')[1]
-    variables = []
-    for i in range(1, len(stringarr)):
-        variables.append(stringarr[i].split(':')[1])
-    if typeofvar in StringVar:
-        return StringVar[typeofvar](variables)
+def JSONtoOBJ(JSON):
+    if JSON['Type'] == 'Node':
+        from nodegraph import NodeGraph
+        node = NodeGraph.Node(Geometry.Point(JSON['Location'][0], JSON['Location'][1]))
+        node.edges = JSON['Edges']
+        return node

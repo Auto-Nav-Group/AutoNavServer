@@ -65,8 +65,13 @@ class NodeGraph:
         def __init__(self, Location):
             self.Loc = Location
             self.Edges = []
-        def toString(self):
-            return "Type:NODE;Location:" + str(self.Loc.unpack())
+        def toJSON(self):
+            dictionary = {
+                "Type" : "Node",
+                "Location" : self.Loc.unpack(),
+                "Edges" : self.Edges
+            }
+            return json.dumps(dictionary)
     class Edge:
         def __init__(self, node1, node2, weight):
             self.startloc = node1.Loc
