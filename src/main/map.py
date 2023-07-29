@@ -32,16 +32,26 @@ class Map:
         self.parseJSON(self.json)
 
     def parseJSON(self, JSON):
-        self.size = Size(JSON[0]['sizex'], JSON[0]['sizey'])
-        self.robotSize = Size(JSON[0]['robotWidth'], JSON[0]['robotHeight'])
-        for i in range(len(JSON[1][0])):
-            obj = JSON[1][0][i]
-            size = Size(obj['width'], obj['height'])
-            self.obstacles.append(Obstacle(Point(obj['locationx'], obj['locationy']), size, obj['rotationangle']))
+        try:
+            self.size = Size(JSON[0]['sizex'], JSON[0]['sizey'])
+            self.robotSize = Size(JSON[0]['robotWidth'], JSON[0]['robotHeight'])
+            for i in range(len(JSON[1][0])):
+                obj = JSON[1][0][i]
+                size = Size(obj['width'], obj['height'])
+                self.obstacles.append(Obstacle(Point(obj['locationx'], obj['locationy']), size, obj['rotationangle']))
+        except:
+            print("Error parsing JSON")
     def isOutsideMap(self, point):
         if point.x>self.size.width or point.x<0 or point.y>self.size.height or point.y<0:
             return True
         return False
+    def toJSON(self):
+        towrite = {
+            "Type" : "Map",
+            "JSON" : self.json
+        }
+        json_obj = json.dumps(towrite, indent=4, default=lambda o: o.__dict__)
+        return json_obj
 def LineIntersectsRect(line_start, line_end, rect_position, rect_size):
     def on_segment(p, q, r):
         return (q.x <= max(p.x, r.x) and q.x >= min(p.x, r.x) and

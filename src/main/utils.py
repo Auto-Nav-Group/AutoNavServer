@@ -1,4 +1,4 @@
-
+import json
 
 
 class Geometry:
@@ -75,8 +75,13 @@ class Geometry:
             self.Rot = Rot
 
 def JSONtoOBJ(JSON):
-    if JSON['Type'] == 'Node':
+    JSON = json.loads(JSON)
+    if JSON["Type"] == "Node":
         from nodegraph import NodeGraph
         node = NodeGraph.Node(Geometry.Point(JSON['Location'][0], JSON['Location'][1]))
         node.edges = JSON['Edges']
         return node
+    if JSON["Type"] == "Map":
+        from map import Map
+        map = Map(JSON["JSON"])
+        return map

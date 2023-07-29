@@ -21,8 +21,8 @@ pathfinder = PathFinder(GRAPH)
 
 pathfinder.DEBUG_benchmarkrecalculate()
 
-server_thread = Thread(target=run_server, args=('localhost', 8000), name='Server')
-server_thread.start()
+# server_thread = Thread(target=run_server, args=('localhost', 8000), name='Server')
+# server_thread.start()
 
 time.sleep(5)
 requests.get('http://localhost:8000', headers={'Command' : 'pathfind', 'startnode' : NodeGraph.Node(Geometry.Point(1,1)).toJSON(), 'endnode' : NodeGraph.Node(Geometry.Point(5,5)).toJSON()})

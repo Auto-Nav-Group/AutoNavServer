@@ -10,21 +10,22 @@ import socketserver
 import os, sys
 
 class JSONHandler(http.server.BaseHTTPRequestHandler):
-    def __init__(self):
-        self.nodegraph = NodeGraph()
-        self.startnode = None
-        self.endnode = None
-        self.map = None
-        self.pathfinder = PathFinder(self.nodegraph)
+    def local_pathfind(self):
+        self.vars["pathfinder"] = PathFinder(self.vars["nodegraph"])
+        path, distance, time = self.vars["pathfinder"].recalculate(self.vars["nodegraph"], self.vars["startnode"], self.vars["endnode"])
+        return path, distance
+    def __init__(self, request, client_address, server):
         self.vars = {
-            "map" : self.map,
-            "nodegraph" : self.nodegraph,
-            "startnode" : self.startnode,
-            "endnode" : self.endnode
+            "map" : Map(None),
+            "nodegraph" : NodeGraph(),
+            "startnode" : NodeGraph.Node(None),
+            "endnode" : NodeGraph.Node(None),
+            "pathfinder" : PathFinder(NodeGraph())
         }
         self.commands = {
-            "pathfind" : self.pathfinder.recalculate(self.nodegraph, self.startnode, self.endnode),
+            "pathfind" : self.local_pathfind
         }
+        http.server.BaseHTTPRequestHandler.__init__(self, request, client_address, server)
     def process_post_data(self, post_data):
         json_string = None
         json_data = None
