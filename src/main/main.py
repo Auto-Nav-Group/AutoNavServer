@@ -3,7 +3,7 @@ from threading import Thread
 from map import Map
 from nodegraph import NodeGraph
 from pathfinder import PathFinder
-from server import run_server
+from httpserverhandler import run_server
 from utils import Geometry
 import requests
 import json
@@ -24,5 +24,6 @@ pathfinder.DEBUG_benchmarkrecalculate()
 # server_thread = Thread(target=run_server, args=('localhost', 8000), name='Server')
 # server_thread.start()
 
-time.sleep(5)
+time.sleep(1)
+requests.post('http://localhost:8000', headers={'Command' : 'update_map'}, data=map.toJSON())
 requests.get('http://localhost:8000', headers={'Command' : 'pathfind', 'startnode' : NodeGraph.Node(Geometry.Point(1,1)).toJSON(), 'endnode' : NodeGraph.Node(Geometry.Point(5,5)).toJSON()})

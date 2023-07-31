@@ -24,11 +24,12 @@ class Obstacle:
 
 
 class Map:
-    def __init__(self, json):
+    def __init__(self, Json):
         self.size = None
         self.obstacles = []
+        self.vobstacles = []
         self.robotSize = Size(0,0)
-        self.json = json
+        self.json = Json
         self.parseJSON(self.json)
 
     def parseJSON(self, JSON):
@@ -39,8 +40,9 @@ class Map:
                 obj = JSON[1][0][i]
                 size = Size(obj['width'], obj['height'])
                 self.obstacles.append(Obstacle(Point(obj['locationx'], obj['locationy']), size, obj['rotationangle']))
-        except:
-            print("Error parsing JSON")
+                self.vobstacles.append(Obstacle(Point(obj['locationx']-self.robotSize.width/2, obj['locationy']-self.robotSize.height/2), Size(size.width+self.robotSize.width, size.height+self.robotSize.height), obj['rotationangle']))
+        except Exception as e:
+            print("Error parsing JSON. Error: "+str(e))
     def isOutsideMap(self, point):
         if point.x>self.size.width or point.x<0 or point.y>self.size.height or point.y<0:
             return True
@@ -54,6 +56,9 @@ class Map:
         return json_obj
 def LineIntersectsRect(line_start, line_end, rect_position, rect_size):
     def on_segment(p, q, r):
+        """
+        Check if point q lies on line segment pr
+        """
         return (q.x <= max(p.x, r.x) and q.x >= min(p.x, r.x) and
                 q.y <= max(p.y, r.y) and q.y >= min(p.y, r.y))
 

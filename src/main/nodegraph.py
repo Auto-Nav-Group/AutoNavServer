@@ -42,11 +42,11 @@ class NodeGraph:
         for i in range(len(self.nodes)-1):
             intersected = False
             for k in range(len(self.map.obstacles)):
-                if Geometry.LineIntersectsRect(node, self.nodes[i].Loc, self.map.obstacles[k].Loc,
+                if Geometry.LineIntersectsRect(node.Loc, self.nodes[i].Loc, self.map.obstacles[k].Loc,
                                                self.map.obstacles[k].Size):
                     intersected = True
             if not intersected:
-                edge = self.Edge(node, self.nodes[i].Loc, node.Loc.distance(self.nodes[i].Loc))
+                edge = self.Edge(node, self.nodes[i], node.Loc.distance(self.nodes[i].Loc))
                 self.nodes[i].Edges.append(edge)
                 node.Edges.append(edge)
                 self.edges.append(edge)
@@ -66,14 +66,30 @@ class NodeGraph:
             self.Loc = Location
             self.Edges = []
         def toJSON(self):
+            edges = []
+            for edge in self.Edges:
+                edges.append(edge.toJSON())
             dictionary = {
                 "Type" : "Node",
                 "Location" : self.Loc.unpack(),
-                "Edges" : self.Edges
+                "Edges" : edges
             }
             return json.dumps(dictionary)
     class Edge:
         def __init__(self, node1, node2, weight):
-            self.startloc = node1.Loc
-            self.endloc = node2.Loc
+            self.loc1 = node1.Loc
+            self.loc2 = node2.Loc
             self.weight = weight
+            #TODO: Change start location and end location to endpoints and add a function to get the other point.
+        def otherloc(self, loc):
+            if loc != self.loc1:
+                return self.loc1
+            if loc != self.loc2:
+                return self.loc2
+        def toJSON(self):
+            return {
+                "Type" : "Edge",
+                "Location1" : self.loc1.unpack(),
+                "Location2" : self.loc2.unpack(),
+                "Weight" : self.weight
+            }
