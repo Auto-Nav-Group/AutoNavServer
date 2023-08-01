@@ -1,10 +1,21 @@
-from src.main.nodegraph import NodeGraph
 import time
 class PathFinder:
     def __init__(self, nodegraph):
         self.path = None
         self.shortestdist = None
         self.nodegraph = nodegraph
+
+    @staticmethod
+    def package_recalc_results(res):
+        path = []
+        for node in res[0]:
+            path.append(node.to_json())
+        return {
+            'path' : path,
+            'distance' : res[1],
+            'time' : res[2]
+        }
+
     def recalculate(self, nodegraph, startnode, endnode):
         """
         Recalculates the path from startnode to endnode using the Dijkstra algorithm
@@ -27,9 +38,10 @@ class PathFinder:
         if (startnode is None or endnode is None) or (startnode == endnode):
             return None
         if startnode not in nodegraph.nodes:
-            nodegraph.addNode(startnode)
+            nodegraph.add_node(startnode)
         if endnode not in nodegraph.nodes:
-            nodegraph.addNode(endnode)
+            nodegraph.add_node(endnode)
+        nodegraph.create_json('G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\PathfindingNodeGraphDebug.json')
         starttime = time.time()
         # Distances are infinity for all nodes except the start node
         distances = {node.Loc: float('inf') for node in nodegraph.nodes}
@@ -58,7 +70,7 @@ class PathFinder:
 
             # Explore neighboring nodes
             for neighbor in current_node.Edges:
-                neighbor_node = neighbor.endloc
+                neighbor_node = neighbor.other_loc(current_node.Loc)
                 new_distance = distances[current_node.Loc] + neighbor.weight
 
                 if new_distance < distances[neighbor_node]:
@@ -66,7 +78,7 @@ class PathFinder:
                     predecessors[neighbor_node] = current_node
 
         if predecessors[endnode.Loc] is None:
-            return [], float('inf'),  # Return an empty path and infinite distance
+            return [], float('inf'), 0  # Return an empty path and infinite distance
         # Recreate path from start_node to end_node
         path = []
         current = endnode
@@ -81,7 +93,7 @@ class PathFinder:
 
         print("Found fastest path in " + str(round(time.time()-starttime, 3)) + " seconds. Segments:" + str(len(path)-1) + " Distance: " + str(distances[endnode.Loc]))
         return path, distances[endnode.Loc], round(time.time()-starttime, 3)
-    def DEBUG_benchmarkrecalculate(self):
+    def debug_benchmark_recalculate(self):
         pathlengths = []
         times = []
         distances = []
@@ -93,10 +105,13 @@ class PathFinder:
                     try:
                         d_Path, d_Distance, d_Time = self.recalculate(self.nodegraph, self.nodegraph.nodes[i],
                                                                       self.nodegraph.nodes[j])
-                        pathlengths.append(len(d_Path) - 1)
-                        times.append(d_Time)
-                        distances.append(d_Distance)
-                        successful += 1
+                        if len(d_Path)-1 == 0 or d_Distance == float('inf'):
+                            failed += 1
+                        else:
+                            pathlengths.append(len(d_Path) - 1)
+                            times.append(d_Time)
+                            distances.append(d_Distance)
+                            successful += 1
                     except Exception as e:
                         failed += 1
                         print(

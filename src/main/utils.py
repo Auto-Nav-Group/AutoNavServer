@@ -1,9 +1,15 @@
+import json
+
 
 class Geometry:
-    def LineIntersectsRect(line_start, line_end, rect_position, rect_size):
+    @staticmethod
+    def line_intersects_rect(line_start, line_end, rect_position, rect_size):
         def on_segment(p, q, r):
-            return (q.x <= max(p.x, r.x) and q.x >= min(p.x, r.x) and
-                    q.y <= max(p.y, r.y) and q.y >= min(p.y, r.y))
+            """
+            Check if point q lies on line segment pr
+            """
+            return (max(p.x, r.x) >= q.x >= min(p.x, r.x) and
+                    max(p.y, r.y) >= q.y >= min(p.y, r.y))
 
         def orientation(p, q, r):
             val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y)
@@ -48,15 +54,15 @@ class Geometry:
         return False
 
     class Point:
-        def __init__(self, X, Y):
-            self.x = X
-            self.y = Y
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
 
         def distance(self, point):
             return ((self.x - point.x) ** 2 + (self.y - point.y) ** 2) ** 0.5
 
         def unpack(self):
-            return (self.x, self.y)
+            return self.x, self.y
 
     class Size:
         def __init__(self, width, height):
@@ -64,10 +70,22 @@ class Geometry:
             self.height = height
 
         def unpack(self):
-            return (self.width, self.height)
+            return self.width, self.height
 
     class Obstacle:
-        def __init__(self, Location, Size, Rot):
-            self.Loc = Location
-            self.Size = Size
-            self.Rot = Rot
+        def __init__(self, location, size, rot):
+            self.Loc = location
+            self.Size = size
+            self.Rot = rot
+
+def json_to_obj(jsonfile):
+    jsonfile = json.loads(jsonfile)
+    if jsonfile["Type"] == "Node":
+        from nodegraph import NodeGraph
+        node = NodeGraph.Node(Geometry.Point(jsonfile['Location'][0], jsonfile['Location'][1]))
+        node.edges = jsonfile['Edges']
+        return node
+    if jsonfile["Type"] == "Map":
+        from map import Map
+        mapreturn = Map(jsonfile["JSON"])
+        return mapreturn
