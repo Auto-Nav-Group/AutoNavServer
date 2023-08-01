@@ -1,4 +1,3 @@
-from src.main.nodegraph import NodeGraph
 import time
 class PathFinder:
     def __init__(self, nodegraph):
@@ -6,10 +5,11 @@ class PathFinder:
         self.shortestdist = None
         self.nodegraph = nodegraph
 
-    def packagerecalcresults(self, res):
+    @staticmethod
+    def package_recalc_results(res):
         path = []
         for node in res[0]:
-            path.append(node.toJSON())
+            path.append(node.to_json())
         return {
             'path' : path,
             'distance' : res[1],
@@ -38,10 +38,10 @@ class PathFinder:
         if (startnode is None or endnode is None) or (startnode == endnode):
             return None
         if startnode not in nodegraph.nodes:
-            nodegraph.addNode(startnode)
+            nodegraph.add_node(startnode)
         if endnode not in nodegraph.nodes:
-            nodegraph.addNode(endnode)
-        nodegraph.createJSON('G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\PathfindingNodeGraphDebug.json')
+            nodegraph.add_node(endnode)
+        nodegraph.create_json('G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\PathfindingNodeGraphDebug.json')
         starttime = time.time()
         # Distances are infinity for all nodes except the start node
         distances = {node.Loc: float('inf') for node in nodegraph.nodes}
@@ -70,7 +70,7 @@ class PathFinder:
 
             # Explore neighboring nodes
             for neighbor in current_node.Edges:
-                neighbor_node = neighbor.otherloc(current_node.Loc)
+                neighbor_node = neighbor.other_loc(current_node.Loc)
                 new_distance = distances[current_node.Loc] + neighbor.weight
 
                 if new_distance < distances[neighbor_node]:
@@ -93,7 +93,7 @@ class PathFinder:
 
         print("Found fastest path in " + str(round(time.time()-starttime, 3)) + " seconds. Segments:" + str(len(path)-1) + " Distance: " + str(distances[endnode.Loc]))
         return path, distances[endnode.Loc], round(time.time()-starttime, 3)
-    def DEBUG_benchmarkrecalculate(self):
+    def debug_benchmark_recalculate(self):
         pathlengths = []
         times = []
         distances = []

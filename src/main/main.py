@@ -3,7 +3,7 @@ from threading import Thread
 from map import Map
 from nodegraph import NodeGraph
 from pathfinder import PathFinder
-from httpserverhandler import run_server
+from httpserverhandler import server
 from utils import Geometry
 import requests
 import json
@@ -11,19 +11,19 @@ import json
 path = 'G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\FRC2023Map.json'
 
 JSON = json.load(open(path))
-map = Map(JSON)
+mapobj = Map(JSON)
 
 GRAPH = NodeGraph()
-GRAPH.createFromMap(map)
+GRAPH.create_from_map(mapobj)
 
-GRAPH.createJSON("G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\OUTPUTNODEGRAPH.json")
+GRAPH.create_json("G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\OUTPUTNODEGRAPH.json")
 pathfinder = PathFinder(GRAPH)
 
-pathfinder.DEBUG_benchmarkrecalculate()
+pathfinder.debug_benchmark_recalculate()
 
-# server_thread = Thread(target=run_server, args=('localhost', 8000), name='Server')
-# server_thread.start()
+server_thread = Thread(target=server.start_server, name='Server')
+server_thread.start()
 
 time.sleep(1)
-requests.post('http://localhost:8000', headers={'Command' : 'update_map'}, data=map.toJSON())
-requests.get('http://localhost:8000', headers={'Command' : 'pathfind', 'startnode' : NodeGraph.Node(Geometry.Point(1,1)).toJSON(), 'endnode' : NodeGraph.Node(Geometry.Point(5,5)).toJSON()})
+requests.post('http://localhost:8000', headers={'Command' : 'update_map'}, data=mapobj.to_json())
+requests.get('http://localhost:8000', headers={'Command' : 'pathfind', 'startnode' : NodeGraph.Node(Geometry.Point(1,1)).to_json(), 'endnode' : NodeGraph.Node(Geometry.Point(5, 5)).to_json()})
