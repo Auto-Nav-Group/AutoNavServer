@@ -49,3 +49,8 @@ import requests
 
 requests.get('http://localhost:8000', headers={'Command' : 'pathfind', 'startnode' : NodeGraph.Node(Geometry.Point(1,1)).to_json(), 'endnode' : NodeGraph.Node(Geometry.Point(5, 5)).to_json()})
 ```
+
+#
+
+### `kill_server`:
+Kills the HTTP server responsible for running the server protocol. WILL CLOSE CONNECTION!!!
