@@ -1,9 +1,11 @@
 # Server Protocol Docs
 
 ### Supported POST commands:
-- `update_map` - Updates the map used during server analysis
+- `/update_map` - Updates the map used during server analysis
+- `/kill_thread` - Shuts down the server entirely.
 ### Supported GET commands:
-- `pathfind` - Finds a path between two points
+- `/pathfind` - Finds a path between two points
+- `/util/status` - Returns the status of the server
 
 
 ## Functions:
@@ -12,7 +14,7 @@ parameters will not be required, however if they are not provided, the server wi
 ### `update_map`:
 Updates the map used during server analysis
 #### Parameters (HTTP headers):
-- Command - `update_map`:
+- None
 #### Attachable data (HTTP post data):
 - `map` - The map to be used during server analysis
 #### Returns:
@@ -25,7 +27,7 @@ import requests
 JSON_FILE = 'E:/Some/File/Path/Map.json'
 
 mapobj = Map(JSON_FILE)
-requests.post('http://localhost:8000', headers={'Command' : 'update_map'}, data=mapobj.to_json())
+requests.post('http://localhost:8000/update_map', data=mapobj.to_json())
 ```
 
 #
@@ -33,7 +35,6 @@ requests.post('http://localhost:8000', headers={'Command' : 'update_map'}, data=
 ### `pathfind`:
 Calculates the fastest path between two points based on the map provided by `update_map`
 #### Parameters (HTTP headers):
-- Command - The command to be run: `pathfind`:
 - `startnode` - The starting node of the path
 - `endnode` - The ending node of the path
 #### Returns:
@@ -47,10 +48,31 @@ import requests
 
 # Assume that the map has already been updated
 
-requests.get('http://localhost:8000', headers={'Command' : 'pathfind', 'startnode' : NodeGraph.Node(Geometry.Point(1,1)).to_json(), 'endnode' : NodeGraph.Node(Geometry.Point(5, 5)).to_json()})
+requests.get('http://localhost:8000/pathfind', headers={'startnode' : NodeGraph.Node(Geometry.Point(1,1)).to_json(), 'endnode' : NodeGraph.Node(Geometry.Point(5, 5)).to_json()})
 ```
 
 #
 
-### `kill_server`:
-Kills the HTTP server responsible for running the server protocol. WILL CLOSE CONNECTION!!!
+### `kill_thread`:
+Shuts down the server entirely. This is a debug command and should not be used in production.
+#### Parameters (HTTP headers):
+- None
+#### Returns:
+- None
+#### Example python request:
+```
+requests.post('http://localhost:8000/kill_thread')
+```
+
+#
+
+### `util/status`:
+Returns the status of the server
+#### Parameters (HTTP headers):
+- None
+#### Returns:
+- `status` - The status of the server
+#### Example python request:
+```
+requests.get('http://localhost:8000/util/status')
+```
