@@ -75,6 +75,9 @@ class NodeGraph:
             }
             return json.dumps(dictionary)
     class Edge:
+        @staticmethod
+        def from_two_nodes(node1, node2):
+            return NodeGraph.Edge(node1, node2, node1.Loc.distance(node2.Loc))
         def __init__(self, node1, node2, weight):
             self.loc1 = node1.Loc
             self.loc2 = node2.Loc
