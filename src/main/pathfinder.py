@@ -7,6 +7,8 @@ class PathFinder:
 
     @staticmethod
     def package_recalc_results(res):
+        if res is None:
+            return None
         path = []
         for node in res[0]:
             path.append(node.to_json())
@@ -78,7 +80,7 @@ class PathFinder:
                     predecessors[neighbor_node] = current_node
 
         if predecessors[endnode.Loc] is None:
-            return [], float('inf'), 0  # Return an empty path and infinite distance
+            return [], -1, 0  # Return an empty path and infinite distance
         # Recreate path from start_node to end_node
         path = []
         current = endnode

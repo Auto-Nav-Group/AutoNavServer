@@ -76,3 +76,16 @@ Returns the status of the server
 ```
 requests.get('http://localhost:8000/util/status')
 ```
+
+#
+
+### `get_nodegraph`:
+Returns the generated nodegraph
+#### Parameters (HTTP headers):
+- None
+#### Returns:
+- `edges` - List of edges in the nodegraph
+#### Example python request:
+```
+requests.get('http://localhost:8000/get_nodegraph
+```

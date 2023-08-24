@@ -3,7 +3,7 @@ import json
 
 class Geometry:
     @staticmethod
-    def line_intersects_rect(line_start, line_end, rect_position, rect_size):
+    def line_intersects_rect(line_start, line_end, rect_position, rect_size): #TODO: Return false if on segment
         def on_segment(p, q, r):
             """
             Check if point q lies on line segment pr
@@ -80,12 +80,21 @@ class Geometry:
 
 def json_to_obj(jsonfile):
     jsonfile = json.loads(jsonfile)
-    if jsonfile["Type"] == "Node":
-        from nodegraph import NodeGraph
-        node = NodeGraph.Node(Geometry.Point(jsonfile['Location'][0], jsonfile['Location'][1]))
-        node.edges = jsonfile['Edges']
-        return node
-    if jsonfile["Type"] == "Map":
-        from map import Map
-        mapreturn = Map(jsonfile["JSON"])
-        return mapreturn
+    try:
+        if jsonfile["Type"] == "Node":
+            from nodegraph import NodeGraph
+            node = NodeGraph.Node(Geometry.Point(jsonfile['Location']['X'], jsonfile['Location']['Y']))
+            node.edges = jsonfile['Edges']
+            return node
+    except:
+        pass
+    try:
+        if jsonfile["Type"] == "Map":
+            from map import Map
+            mapreturn = Map(jsonfile["JSON"])
+            return mapreturn
+    except:
+        if jsonfile[0] == "Map":
+            from map import Map
+            mapreturn = Map(jsonfile[1])
+            return mapreturn

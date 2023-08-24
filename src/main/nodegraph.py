@@ -59,6 +59,13 @@ class NodeGraph:
 
         with open(path, "w") as outfile:
             outfile.write(json_obj)
+    def to_json(self):
+        edgestrs = []
+        for edge in self.edges:
+            edgestrs.append(edge.to_json())
+        return {
+            "edges" : edgestrs
+        }
 
     class Node:
         def __init__(self, location):

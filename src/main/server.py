@@ -31,7 +31,8 @@ class Server:
         }
         self.getcommands = {
             "/util/status" : self.__local_status,
-            "/pathfind" : self.__local_pathfind
+            "/pathfind" : self.__local_pathfind,
+            "/get_nodegraph" : self.__local_get_nodegraph
         }
     def start_server(self):
         try:
@@ -69,7 +70,7 @@ class Server:
             for header in headers:
                 if header in vars(self):
                     vars(self)[header] = json_to_obj(headers[header])
-            data = json.dumps(self.getcommands[command]())
+            data = json.dumps(self.getcommands[command](), indent=4)
             return 200, data, 'application/json'
         else:
             return 400, 'Command Invalid', 'text/plain'
@@ -93,6 +94,9 @@ class Server:
 
     def __local_kill_thread(self, post_data):
         return 'Killed thread successfully', self.__kill(), 'Connection', 'close'
+
+    def __local_get_nodegraph(self):
+        return self.nodegraph.to_json()
 
     def __kill(self):
         self.shutdown_server = True

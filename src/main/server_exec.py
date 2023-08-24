@@ -1,7 +1,7 @@
 from server import Server
 import time
 
-processing_server = Server('localhost', 8000)
+processing_server = Server('127.0.0.1', 8000)
 
 processing_server.start_server()
 
