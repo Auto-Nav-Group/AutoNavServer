@@ -11,7 +11,7 @@ class PathFinder:
             return None
         path = []
         for node in res[0]:
-            path.append(node.to_json())
+            path.append(node.to_compact_json())
         return {
             'path' : path,
             'distance' : res[1],
