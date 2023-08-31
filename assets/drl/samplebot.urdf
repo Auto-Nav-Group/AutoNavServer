@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
-<robot name="cube.urdf">
-  <link name="baseLink">
+<robot name="robot">
+  <link name="robot">
     <contact>
       <lateral_friction value="0.5"/>
       <rolling_friction value="0.0"/>
@@ -15,16 +15,16 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="teddy2_VHACD_CHs.obj" scale=".1 .1 .1"/>
+        <box size="1 1 1"/>
       </geometry>
-       <material name="red">
-        <color rgba="1 0.4 0.4 1"/>
+       <material name="blue">
+        <color rgba="0 0 1 1"/>
       </material>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-	 	<mesh filename="teddy2_VHACD_CHs.obj" scale=".1 .1 .1"/>
+	 	<box size="1 1 1"/>
       </geometry>
     </collision>
   </link>

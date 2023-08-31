@@ -3,6 +3,7 @@ import pybullet as p
 import pybullet_data
 import numpy as np
 import os
+import time
 
 TIME_DELTA = 0.1 # Time setup in simulation
 GUI = True # GUI flag
@@ -15,6 +16,7 @@ class DRL_VENV:
         self.goal_x = 1
         self.goal_y = 0
         self.obstacles = []
+        self.pybullet_instance = p
         if GUI:
             self.client = p.connect(p.GUI)
         else:
@@ -28,6 +30,11 @@ class DRL_VENV:
             p.loadURDF("bound"+str(i+1)+".urdf")
         for i in range(len(self.basis.obstacles)):
             self.obstacles.append(p.loadURDF("obs_"+str(i+1)+".urdf"))
+        p.loadURDF("robot.urdf", [0, 0, 0.1])
+
+    def step(self, action):
+        p.stepSimulation()
+        time.sleep(TIME_DELTA)
     def reset(self): # Create a new environment
         p.resetSimulation()
         p.setGravity(0, 0, -9.81)
