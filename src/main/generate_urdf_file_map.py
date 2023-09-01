@@ -2,8 +2,8 @@ from map import Map
 import os
 
 
-# ASSET_PATH = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\generate_map_files"
-ASSET_PATH = "/Users/maximkudryashov/Projects/AutoNav/AutoNavServer/assets/drl/generate_map_files"
+ASSET_PATH = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\generate_map_files"
+#ASSET_PATH = "/Users/maximkudryashov/Projects/AutoNav/AutoNavServer/assets/drl/generate_map_files"
 
 def from_map(map):
     for file in os.listdir(ASSET_PATH):

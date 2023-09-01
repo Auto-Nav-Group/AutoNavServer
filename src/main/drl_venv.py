@@ -35,12 +35,28 @@ class DRL_VENV:
     def step(self, action):
         p.stepSimulation()
         time.sleep(TIME_DELTA)
+
     def reset(self): # Create a new environment
         p.resetSimulation()
         p.setGravity(0, 0, -9.81)
         p.setTimeStep(0.01)
         p.setTimeStep(TIME_DELTA)
-        planeId = p.loadURDF("plane.urdf")
+        planeId = p.loadURDF("floor.urdf")
+        for i in range(4):
+            p.loadURDF("bound"+str(i+1)+".urdf")
+        for i in range(len(self.basis.obstacles)):
+            self.obstacles.append(p.loadURDF("obs_"+str(i+1)+".urdf"))
+        p.loadURDF("robot.urdf", [0, 0, 0.1])
         # Determine new random orientation
         angle = np.random.uniform(-np.pi, np.pi) #Generate a random angle to start at
         quaternion = Quaternion.from_euler(0, 0, angle)
+
+    @staticmethod
+    def get_reward(target, collision, action):
+        if target:
+            return 100.0
+        elif collision:
+            return -100.0
+        else:
+            r3 = lambda x: 1 - x if x < 1 else 0.0
+            return action[0] / 2 - abs(action[1]) / 2
