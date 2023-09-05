@@ -1,12 +1,9 @@
-import numpy as np
-import os
-import time
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 from drl_utils import ReplayBuffer
 
 
@@ -64,43 +61,39 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Critic, self).__init__()
 
-        # First critic network
-        self.layer_1 = nn.Linear(state_dim, 800)  # Linear layer for state input
-        self.layer_2_s = nn.Linear(800, 600)  # Linear layer for state pathway
-        self.layer_2_a = nn.Linear(action_dim, 600)  # Linear layer for action pathway
-        self.layer_3 = nn.Linear(600, 1)  # Linear layer for Q-value output
+        self.layer_1 = nn.Linear(state_dim, 800)
+        self.layer_2_s = nn.Linear(800, 600)
+        self.layer_2_a = nn.Linear(action_dim, 600)
+        self.layer_3 = nn.Linear(600, 1)
 
-        # Second critic network (for double Q-learning)
-        self.layer_4 = nn.Linear(state_dim, 800)  # Linear layer for state input
-        self.layer_5_s = nn.Linear(800, 600)  # Linear layer for state pathway
-        self.layer_5_a = nn.Linear(action_dim, 600)  # Linear layer for action pathway
-        self.layer_6 = nn.Linear(600, 1)  # Linear layer for Q-value output
+        self.layer_4 = nn.Linear(state_dim, 800)
+        self.layer_5_s = nn.Linear(800, 600)
+        self.layer_5_a = nn.Linear(action_dim, 600)
+        self.layer_6 = nn.Linear(600, 1)
 
     def forward(self, s, a):
-        # Compute Q-values for the first critic network
-        s1 = F.relu(self.layer_1(s))  # Apply ReLU to state input
-        s1 = F.relu(self.layer_2_s(s1))  # Apply ReLU to state pathway
-        a = F.relu(self.layer_2_a(a))  # Apply ReLU to action pathway
-        s11 = torch.mm(s1, self.layer_2_s.weight.data.t())  # Matrix multiplication
-        s12 = torch.mm(a, self.layer_2_a.weight.data.t())  # Matrix multiplication
-        s1 = F.relu(s11 + s12 + self.layer_2_a.bias.data)  # Combine and apply ReLU
-        q1 = self.layer_3(s1)  # Compute Q-value for first critic
+        s1 = F.relu(self.layer_1(s))
+        self.layer_2_s(s1)
+        self.layer_2_a(a)
+        s11 = torch.mm(s1, self.layer_2_s.weight.data.t())
+        s12 = torch.mm(a, self.layer_2_a.weight.data.t())
+        s1 = F.relu(s11 + s12 + self.layer_2_a.bias.data)
+        q1 = self.layer_3(s1)
 
-        # Compute Q-values for the second critic network (double Q-learning)
-        s2 = F.relu(self.layer_4(s))  # Apply ReLU to state input
-        s2 = F.relu(self.layer_5_s(s2))  # Apply ReLU to state pathway
-        a = F.relu(self.layer_5_a(a))  # Apply ReLU to action pathway
-        s21 = torch.mm(s2, self.layer_5_s.weight.data.t())  # Matrix multiplication
-        s22 = torch.mm(a, self.layer_5_a.weight.data.t())  # Matrix multiplication
-        s2 = F.relu(s21 + s22 + self.layer_5_a.bias.data)  # Combine and apply ReLU
-        q2 = self.layer_6(s2)  # Compute Q-value for second critic
-
+        s2 = F.relu(self.layer_4(s))
+        self.layer_5_s(s2)
+        self.layer_5_a(a)
+        s21 = torch.mm(s2, self.layer_5_s.weight.data.t())
+        s22 = torch.mm(a, self.layer_5_a.weight.data.t())
+        s2 = F.relu(s21 + s22 + self.layer_5_a.bias.data)
+        q2 = self.layer_6(s2)
         return q1, q2
 
 
+
 class TD3_NET(object):
-    def __init__(self, state_dim, action_dim, max_action):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Check if GPU is available
+    def __init__(self, device, state_dim, action_dim, max_action):
+        self.device = device
         self.actor = Actor(state_dim, action_dim).to(self.device)  # Create actor network
         self.actor_targ = Actor(state_dim, action_dim).to(self.device)  # Create target actor network
         self.actor_targ.load_state_dict(self.actor.state_dict())  # Copy actor network to target actor network
@@ -112,7 +105,7 @@ class TD3_NET(object):
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters())  # Adam optimizer for critic network
 
         self.max_action = max_action  # Maximum action value
-        self.sum_writer = SummaryWriter()
+        #self.sum_writer = SummaryWriter()
         self.iteration_count = 0
 
     def get_action(self, state):
@@ -127,7 +120,7 @@ class TD3_NET(object):
         av_loss = 0
         for iter in range(iterations):
             # Sample replay buffer
-            b_state, b_next_state, b_actions, b_reward, b_done = replay_buf.sample(batch_size)
+            b_state, b_next_state, b_actions, b_reward, b_done = replay_buf.sample_batch(batch_size)
             state = torch.Tensor(b_state).to(self.device)
             action = torch.Tensor(b_actions).to(self.device)
             next_state = torch.Tensor(b_next_state).to(self.device)
@@ -140,7 +133,7 @@ class TD3_NET(object):
             # Select action according to policy and add clipped noise
             noise = torch.Tensor(b_actions).data.normal_(0, policy_noise).to(self.device)
             noise = noise.clamp(-noise_clip, noise_clip)
-            next_action = (self.actor_targ(next_state) + noise).clamp(-self.max_action, self.max_action)
+            next_action = (next_action + noise).clamp(-self.max_action, self.max_action)
 
             # Compute the target Q value
             target_Q1, target_Q2 = self.critic_targ(next_state, next_action)
@@ -176,9 +169,9 @@ class TD3_NET(object):
             av_loss += critic_loss
 
         self.iteration_count += 1
-        self.sum_writer.add_scalar('Avg Q', av_Q / iterations, self.iteration_count)
-        self.sum_writer.add_scalar('Loss', av_loss / iterations, self.iteration_count)
-        self.sum_writer.add_scalar('Max Q', max_Q, self.iteration_count)
+        #self.sum_writer.add_scalar('Avg Q', av_Q / iterations, self.iteration_count)
+        #self.sum_writer.add_scalar('Loss', av_loss / iterations, self.iteration_count)
+        #self.sum_writer.add_scalar('Max Q', max_Q, self.iteration_count)
 
     def save(self, filename, directory):
         torch.save(self.actor.state_dict(), "%s/%s_actor.pth" % (directory, filename))

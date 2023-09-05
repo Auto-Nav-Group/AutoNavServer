@@ -1,6 +1,13 @@
 import numpy as np
 import random
 
+class ObjectState:
+    def __init__(self):
+        self.position = [0, 0, 0]
+        self.orientation = [0, 0, 0, 0]
+        self.linear_velocity = [0, 0, 0]
+        self.angular_velocity = [0, 0, 0]
+
 class Quaternion:
     def __init__(self):
         self.w = 0
@@ -13,13 +20,27 @@ class Quaternion:
         self.y = y
         self.z = z
 
-    def from_euler(self, roll, pitch, yaw):
+    @staticmethod
+    def from_euler(roll, pitch, yaw):
         cy = np.cos(yaw * 0.5)
         sy = np.sin(yaw * 0.5)
         cp = np.cos(pitch * 0.5)
         sp = np.sin(pitch * 0.5)
         cr = np.cos(roll * 0.5)
         sr = np.sin(roll * 0.5)
+
+        q = Quaternion()
+
+        q.define(cr*cp*cy+sr*sp*sy, sr*cp*cy-cr*sp*sy, cr*sp*cy+sr*cp*sy, cr*cp*sy-sr*sp*cy)
+
+        return q
+
+    def to_euler(self):
+        roll = np.arctan2(2*(self.w*self.x+self.y*self.z), 1-2*(self.x**2+self.y**2))
+        pitch = np.arcsin(2*(self.w*self.y-self.z*self.x))
+        yaw = np.arctan2(2*(self.w*self.z+self.x*self.y), 1-2*(self.y**2+self.z**2))
+
+        return roll, pitch, yaw
 
 class ReplayBuffer(object):
     def __init__(self, buffer_size, random_seed=123):

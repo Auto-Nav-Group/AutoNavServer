@@ -1,20 +1,27 @@
-from drl_utils import Quaternion
+from drl_utils import Quaternion, ReplayBuffer, ObjectState
 import pybullet as p
 import pybullet_data
 import numpy as np
 import os
 import time
+import math
 
 TIME_DELTA = 0.1 # Time setup in simulation
-GUI = True # GUI flag
+GUI = False # GUI flag
+GOAL_REACHED_DIST = 1 # Distance to goal to be considered reached
+MAX_SPEED = 1 # Maximum speed of the robot
+TIP_ANGLE = 30
+
+SPAWN_BORDER = 1
 
 class DRL_VENV:
-    def __init__(self, environment_dimensions, map, assets_path):
+    def __init__(self, map, assets_path):
         self.basis = map
         self.robot = None
-        self.environment_dimensions = environment_dimensions
         self.goal_x = 1
         self.goal_y = 0
+        self.x = 0
+        self.y = 0
         self.obstacles = []
         self.pybullet_instance = p
         if GUI:
@@ -25,38 +32,201 @@ class DRL_VENV:
         p.setGravity(0, 0, -9.81)
         p.setTimeStep(0.01)
         p.setTimeStep(TIME_DELTA)
-        planeId = p.loadURDF("floor.urdf")
+        self.environment_ids = []
+        self.environment_dim = 0
+
+        self.initial_state = ObjectState()
+        self.initial_state.position = [0, 0, 0.1]
+        self.initial_state.orientation = [0, 0, 0, 1]
+
+        self.floor = self.environment_ids.append(p.loadURDF("floor.urdf"))
         for i in range(4):
-            p.loadURDF("bound"+str(i+1)+".urdf")
+            self.environment_ids.append(p.loadURDF("bound"+str(i+1)+".urdf"))
         for i in range(len(self.basis.obstacles)):
             self.obstacles.append(p.loadURDF("obs_"+str(i+1)+".urdf"))
-        p.loadURDF("robot.urdf", [0, 0, 0.1])
+            self.environment_ids.append(self.obstacles[i])
+        for i in range(len(self.environment_ids)):
+            self.environment_dim += p.getNumJoints(self.environment_ids[i])
+        print(self.environment_dim)
+        self.robotid = p.loadURDF("robot.urdf", [0, 0, 0.1])
+
+    def new_goal(self):
+        self.goal_x = np.random.uniform(SPAWN_BORDER, self.basis.size.width-SPAWN_BORDER)
+        self.goal_y = np.random.uniform(SPAWN_BORDER, self.basis.size.height-SPAWN_BORDER)
+        goal_fine = False
+        while not goal_fine:
+            goal_fine = True
+            for i in range(len(self.basis.obstacles)):
+                if self.basis.obstacles[i].Loc.x-self.basis.obstacles[i].Size.width/2<self.goal_x<self.basis.obstacles[i].Loc.x+self.basis.obstacles[i].Size.width/2 and self.basis.obstacles[i].Loc.y-self.basis.obstacles[i].Size.height/2<self.goal_y<self.basis.obstacles[i].Loc.y+self.basis.obstacles[i].Size.height/2:
+                    goal_fine = False
+                    self.goal_x = np.random.uniform(0, self.basis.size.width)
+                    self.goal_y = np.random.uniform(0, self.basis.size.height)
+        self.goal_x = self.goal_x-self.basis.size.width/2
+        self.goal_y = self.goal_y-self.basis.size.height/2
+        p.loadURDF("goal.urdf", [self.goal_x, self.goal_y, 0.1])
 
     def step(self, action):
+        target = False
+        done = False
+        achieved_goal = False
+
         p.stepSimulation()
-        time.sleep(TIME_DELTA)
+
+        position, quaternion = p.getBasePositionAndOrientation(self.robotid)
+        if position[2] < -1:
+            p.resetBasePositionAndOrientation(self.robotid, [position[0], position[1], 0], quaternion)
+        if position[0] < -self.basis.size.width/2 or position[0] > self.basis.size.width/2 or position[1] < -self.basis.size.height/2 or position[1] > self.basis.size.height/2:
+            p.resetBasePositionAndOrientation(self.robotid, [0,0, position[2]], quaternion)
+            done = True
+
+        self.x = position[0]
+        self.y = position[2]
+        distance = np.linalg.norm(
+            [self.x - self.goal_x, self.y, self.goal_y]
+        )
+        q = Quaternion()
+        q.define(quaternion[3], quaternion[0], quaternion[1], quaternion[2])
+        quaternion = q
+        roll, pitch, yaw = quaternion.to_euler()
+
+        action = action.detach().numpy()
+
+        action_x = action[0]*MAX_SPEED*math.sin(yaw)
+        action_z = action[0]*MAX_SPEED*math.cos(yaw)
+
+        p.resetBaseVelocity(self.robotid, [action_x, 0, action_z], [0, 0, action[1]])
+
+        collision = self.get_collisions()
+
+        if roll > math.radians(TIP_ANGLE) or roll < math.radians(-TIP_ANGLE) or pitch > math.radians(TIP_ANGLE) or pitch < math.radians(-TIP_ANGLE):
+            collision = True
+        angle = round(yaw)
+
+        distance = np.linalg.norm(
+            [self.x - self.goal_x, self.y - self.goal_y]
+        )
+
+        # Calculate the relative angle between the robots heading and heading toward the goal
+        skew_x = self.goal_x - self.x
+        skew_y = self.goal_y - self.y
+        dot = skew_x * 1 + skew_y * 0
+        mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
+        mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
+        beta = math.acos(dot / (mag1 * mag2))
+        if skew_y < 0:
+            if skew_x < 0:
+                beta = -beta
+            else:
+                beta = 0 - beta
+        theta = beta - angle
+        if theta > np.pi:
+            theta = np.pi - theta
+            theta = -np.pi - theta
+        if theta < -np.pi:
+            theta = -np.pi - theta
+            theta = np.pi - theta
+
+
+        # Detect if the goal has been reached and give a large positive reward
+        if distance < GOAL_REACHED_DIST:
+            achieved_goal = True
+            done = True
+        robot_state = [distance, theta, action[0], action[1]]
+        reward = self.get_reward(target, collision, action)
+        #return robot_state, reward, done, target
+        return robot_state, collision, done, achieved_goal
+
 
     def reset(self): # Create a new environment
         p.resetSimulation()
         p.setGravity(0, 0, -9.81)
         p.setTimeStep(0.01)
         p.setTimeStep(TIME_DELTA)
-        planeId = p.loadURDF("floor.urdf")
+        self.environment_ids = []
+        self.environment_dim = 0
+
+        self.initial_state = ObjectState()
+        self.initial_state.position = [0, 0, 0.1]
+        self.initial_state.orientation = [0, 0, 0, 1]
+
+        self.floor = self.environment_ids.append(p.loadURDF("floor.urdf"))
         for i in range(4):
-            p.loadURDF("bound"+str(i+1)+".urdf")
+            self.environment_ids.append(p.loadURDF("bound"+str(i+1)+".urdf"))
         for i in range(len(self.basis.obstacles)):
             self.obstacles.append(p.loadURDF("obs_"+str(i+1)+".urdf"))
-        p.loadURDF("robot.urdf", [0, 0, 0.1])
+            self.environment_ids.append(self.obstacles[i])
+        for i in range(len(self.environment_ids)):
+            self.environment_dim += p.getNumJoints(self.environment_ids[i])
+        print(self.environment_dim)
         # Determine new random orientation
         angle = np.random.uniform(-np.pi, np.pi) #Generate a random angle to start at
         quaternion = Quaternion.from_euler(0, 0, angle)
+        obj_state = self.initial_state
+
+        x = 0
+        z = 0
+        position_fine = False
+        while not position_fine:
+            x = np.random.uniform(SPAWN_BORDER, self.basis.size.width-SPAWN_BORDER)
+            z = np.random.uniform(SPAWN_BORDER, self.basis.size.height-SPAWN_BORDER)
+            position_fine = True
+            for i in range(len(self.basis.obstacles)):
+                if self.basis.vobstacles[i].Loc.x < x < self.basis.vobstacles[i].Loc.x + self.basis.vobstacles[i].Size.width and self.basis.vobstacles[i].Loc.y < y < self.basis.vobstacles[i].Loc.y + self.basis.vobstacles[i].Size.height:
+                    position_fine = False
+                    break
+        x=x-self.basis.size.width/2
+        z=z-self.basis.size.height/2
+        self.x = x
+        self.y = z
+        obj_state.position = [x, 0.5, z]
+        obj_state.orientation = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
+
+        robotid = p.loadURDF("robot.urdf", obj_state.position, obj_state.orientation)
+
+        self.new_goal()
+
+        if GUI:
+            time.sleep(TIME_DELTA)
+
+        skew_x = self.goal_x - self.x
+        skew_y = self.goal_y - self.y
+
+        dot = skew_x * 1 + skew_y * 0
+        mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
+        mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
+        beta = math.acos(dot / (mag1 * mag2))
+
+        if skew_y < 0:
+            if skew_x < 0:
+                beta = -beta
+            else:
+                beta = 0 - beta
+        theta = beta - angle
+
+        distance = np.linalg.norm(
+            [self.x - self.goal_x, self.y - self.goal_y]
+        )
+
+        robot_state = [distance, theta, 0.0, 0.0]
+        return robot_state
 
     @staticmethod
     def get_reward(target, collision, action):
         if target:
             return 100.0
         elif collision:
-            return -100.0
+            return -100
         else:
             r3 = lambda x: 1 - x if x < 1 else 0.0
             return action[0] / 2 - abs(action[1]) / 2
+
+    def get_collisions(self):
+        points = p.getContactPoints(self.robotid)
+        filtered_points = []
+        for point in points:
+            if point[1] != self.floor and point[2] != self.floor:
+                filtered_points.append(point)
+        if len(filtered_points) > 0:
+            return len(filtered_points)
+        else:
+            return 0
