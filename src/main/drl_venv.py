@@ -7,9 +7,10 @@ import time
 import math
 
 TIME_DELTA = 0.1 # Time setup in simulation
-GUI = False # GUI flag
+GUI = True # GUI flag
 GOAL_REACHED_DIST = 1 # Distance to goal to be considered reached
-MAX_SPEED = 1 # Maximum speed of the robot
+MAX_SPEED = 5 # Maximum speed of the robot
+MAX_ANGULAR_SPEED = math.pi/2 # Maximum angular speed of the robot
 TIP_ANGLE = 30
 
 SPAWN_BORDER = 1
@@ -72,10 +73,16 @@ class DRL_VENV:
 
         p.stepSimulation()
 
+        if GUI:
+            time.sleep(TIME_DELTA)
+
         position, quaternion = p.getBasePositionAndOrientation(self.robotid)
         if position[2] < -1:
             p.resetBasePositionAndOrientation(self.robotid, [position[0], position[1], 0], quaternion)
         if position[0] < -self.basis.size.width/2 or position[0] > self.basis.size.width/2 or position[1] < -self.basis.size.height/2 or position[1] > self.basis.size.height/2:
+            p.resetBasePositionAndOrientation(self.robotid, [0,0, position[2]], quaternion)
+            done = True
+        if math.isnan(position[0]) or math.isnan(position[1]) or math.isnan(position[2]):
             p.resetBasePositionAndOrientation(self.robotid, [0,0, position[2]], quaternion)
             done = True
 
@@ -89,18 +96,24 @@ class DRL_VENV:
         quaternion = q
         roll, pitch, yaw = quaternion.to_euler()
 
-        action = action.detach().numpy()
+        action = action.cpu().detach().numpy()
 
         action_x = action[0]*MAX_SPEED*math.sin(yaw)
         action_z = action[0]*MAX_SPEED*math.cos(yaw)
 
-        p.resetBaseVelocity(self.robotid, [action_x, 0, action_z], [0, 0, action[1]])
+        rotation_yaw = action[1]*MAX_ANGULAR_SPEED
+
+        p.resetBaseVelocity(self.robotid, [action_x, 0, action_z], [0, 0,rotation_yaw])
 
         collision = self.get_collisions()
 
         if roll > math.radians(TIP_ANGLE) or roll < math.radians(-TIP_ANGLE) or pitch > math.radians(TIP_ANGLE) or pitch < math.radians(-TIP_ANGLE):
             collision = True
-        angle = round(yaw)
+
+        try:
+            angle = round(yaw)
+        except Exception as e:
+            angle = 0
 
         distance = np.linalg.norm(
             [self.x - self.goal_x, self.y - self.goal_y]
@@ -149,7 +162,8 @@ class DRL_VENV:
         self.initial_state.position = [0, 0, 0.1]
         self.initial_state.orientation = [0, 0, 0, 1]
 
-        self.floor = self.environment_ids.append(p.loadURDF("floor.urdf"))
+        self.floor = p.loadURDF("floor.urdf")
+        self.environment_ids.append(self.floor)
         for i in range(4):
             self.environment_ids.append(p.loadURDF("bound"+str(i+1)+".urdf"))
         for i in range(len(self.basis.obstacles)):
@@ -171,14 +185,14 @@ class DRL_VENV:
             z = np.random.uniform(SPAWN_BORDER, self.basis.size.height-SPAWN_BORDER)
             position_fine = True
             for i in range(len(self.basis.obstacles)):
-                if self.basis.vobstacles[i].Loc.x < x < self.basis.vobstacles[i].Loc.x + self.basis.vobstacles[i].Size.width and self.basis.vobstacles[i].Loc.y < y < self.basis.vobstacles[i].Loc.y + self.basis.vobstacles[i].Size.height:
+                if self.basis.vobstacles[i].Loc.x < x < self.basis.vobstacles[i].Loc.x + self.basis.vobstacles[i].Size.width and self.basis.vobstacles[i].Loc.y < z < self.basis.vobstacles[i].Loc.y + self.basis.vobstacles[i].Size.height:
                     position_fine = False
                     break
         x=x-self.basis.size.width/2
         z=z-self.basis.size.height/2
         self.x = x
         self.y = z
-        obj_state.position = [x, 0.5, z]
+        obj_state.position = [x, 0.25, z]
         obj_state.orientation = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
 
         robotid = p.loadURDF("robot.urdf", obj_state.position, obj_state.orientation)
@@ -209,7 +223,6 @@ class DRL_VENV:
 
         robot_state = [distance, theta, 0.0, 0.0]
         return robot_state
-
     @staticmethod
     def get_reward(target, collision, action):
         if target:
@@ -227,6 +240,6 @@ class DRL_VENV:
             if point[1] != self.floor and point[2] != self.floor:
                 filtered_points.append(point)
         if len(filtered_points) > 0:
-            return len(filtered_points)
+            return True
         else:
-            return 0
+            return False
