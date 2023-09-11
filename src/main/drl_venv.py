@@ -7,7 +7,7 @@ import time
 import math
 
 TIME_DELTA = 0.1 # Time setup in simulation
-GUI = True # GUI flag
+GUI = False # GUI flag
 GOAL_REACHED_DIST = 1 # Distance to goal to be considered reached
 MAX_SPEED = 5 # Maximum speed of the robot
 MAX_ANGULAR_SPEED = math.pi*2 # Maximum angular speed of the robot
@@ -15,7 +15,7 @@ TIP_ANGLE = 30
 
 GRAVITY = 0
 
-SPAWN_BORDER = 3
+SPAWN_BORDER = 2
 
 class DRL_VENV:
     def __init__(self, map, assets_path):
@@ -63,6 +63,8 @@ class DRL_VENV:
             distance = math.sqrt((self.goal_x-self.x)**2+(self.goal_y-self.y)**2)
             if distance<GOAL_REACHED_DIST*2:
                 goal_fine=False
+                self.goal_x = np.random.uniform(0, self.basis.size.width)
+                self.goal_y = np.random.uniform(0, self.basis.size.height)
             for i in range(len(self.basis.obstacles)):
                 if self.basis.obstacles[i].Loc.x-self.basis.obstacles[i].Size.width/2<self.goal_x<self.basis.obstacles[i].Loc.x+self.basis.obstacles[i].Size.width/2 and self.basis.obstacles[i].Loc.y-self.basis.obstacles[i].Size.height/2<self.goal_y<self.basis.obstacles[i].Loc.y+self.basis.obstacles[i].Size.height/2:
                     goal_fine = False

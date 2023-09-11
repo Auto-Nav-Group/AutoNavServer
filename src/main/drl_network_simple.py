@@ -21,7 +21,7 @@ SIMPLE_LAYER_1 = 256
 SIMPLE_LAYER_2 = 256
 
 COLLISION_WEIGHT = -150
-TIME_WEIGHT = -2
+TIME_WEIGHT = -6
 FINISH_WEIGHT = 150
 DIST_WEIGHT = 4
 PASS_DIST_WEIGHT = 0
@@ -29,7 +29,7 @@ ANGLE_WEIGHT = -2
 
 EPISODES = 40000
 TIMESTEP_CAP = 100
-SAVE_FREQ = -1 #Save model every x episodes
+SAVE_FREQ = 50 #Save model every x episodes
 
 BATCH_SIZE = SIMPLE_LAYER_1 #Batch size for training
 GAMMA = 0.99 #Discount factor
