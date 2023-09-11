@@ -23,13 +23,13 @@ SIMPLE_LAYER_2 = 256
 COLLISION_WEIGHT = -150
 TIME_WEIGHT = -2
 FINISH_WEIGHT = 150
-DIST_WEIGHT = 2
+DIST_WEIGHT = 4
 PASS_DIST_WEIGHT = 0
 ANGLE_WEIGHT = -2
 
 EPISODES = 40000
 TIMESTEP_CAP = 100
-SAVE_FREQ = 25 #Save model every x episodes
+SAVE_FREQ = -1 #Save model every x episodes
 
 BATCH_SIZE = SIMPLE_LAYER_1 #Batch size for training
 GAMMA = 0.99 #Discount factor
@@ -46,16 +46,19 @@ TRAINING_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def get_reward(done, collision, timestep, achieved_goal, delta_dist, initdistance, ovr_dist, angle):
     dist_weight = delta_dist*DIST_WEIGHT
     angle_weight = (abs(angle)/np.pi) * ANGLE_WEIGHT
-    time_weight = TIME_WEIGHT*(initdistance/MAX_SPEED-timestep/TIME_DELTA)
+    #time_weight = TIME_WEIGHT*(initdistance/MAX_SPEED-timestep/TIME_DELTA)
+    time_weight = 0
     total_weight = dist_weight + angle_weight + time_weight
     if (ovr_dist > initdistance):
         total_weight += PASS_DIST_WEIGHT
+    if initdistance/MAX_SPEED < timestep*TIME_DELTA:
+        total_weight += TIME_WEIGHT
+        time_weight = TIME_WEIGHT
     if done:
         if achieved_goal:
             return FINISH_WEIGHT + time_weight, time_weight, dist_weight, angle_weight
     if collision is True:
         return COLLISION_WEIGHT + time_weight, time_weight, dist_weight, angle_weight
-    time_weight = 0
     return total_weight, time_weight, dist_weight, angle_weight
 
 class SimpleActor(nn.Module):
@@ -81,7 +84,7 @@ def compute_returns(rewards):
     returns = (returns - returns.mean()) / (returns.std() + 1e-8)
     return returns
 
-def train(env, agent=None, statistics=None, prev_episode=0):
+def train(env, agent=None, plotter=None, prev_episode=0):
     def get_action(c_episode, c_state):
         sample = random.random()
         eps_threshold = EPS_END + (EPS_START - EPS_END) * np.exp(-1. * c_episode / EPS_DECAY)
@@ -171,7 +174,8 @@ def train(env, agent=None, statistics=None, prev_episode=0):
 
     agent.to(TRAINING_DEVICE)
 
-    plotter = Model_Plotter(EPISODES)
+    if plotter is None:
+        plotter = Model_Plotter(EPISODES)
 
     '''total_rewards = np.zeros(100)
     total_rewards_x = np.arange(100)
