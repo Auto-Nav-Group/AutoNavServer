@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 #from torch.utils.tensorboard import SummaryWriter
-from drl_utils import ReplayBuffer
+from drl_utils import ReplayMemory
 
 
 

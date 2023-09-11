@@ -1,4 +1,4 @@
-from drl_utils import Quaternion, ReplayBuffer, ObjectState
+from drl_utils import Quaternion, ReplayMemory, ObjectState
 import pybullet as p
 import pybullet_data
 import numpy as np
@@ -7,13 +7,15 @@ import time
 import math
 
 TIME_DELTA = 0.1 # Time setup in simulation
-GUI = True # GUI flag
+GUI = False # GUI flag
 GOAL_REACHED_DIST = 1 # Distance to goal to be considered reached
 MAX_SPEED = 5 # Maximum speed of the robot
-MAX_ANGULAR_SPEED = math.pi/2 # Maximum angular speed of the robot
+MAX_ANGULAR_SPEED = math.pi*2 # Maximum angular speed of the robot
 TIP_ANGLE = 30
 
-SPAWN_BORDER = 1
+GRAVITY = 0
+
+SPAWN_BORDER = 3
 
 class DRL_VENV:
     def __init__(self, map, assets_path):
@@ -30,7 +32,7 @@ class DRL_VENV:
         else:
             self.client = p.connect(p.DIRECT)
         p.setAdditionalSearchPath(assets_path)
-        p.setGravity(0, 0, -9.81)
+        p.setGravity(0, 0, -GRAVITY)
         p.setTimeStep(0.01)
         p.setTimeStep(TIME_DELTA)
         self.environment_ids = []
@@ -55,13 +57,18 @@ class DRL_VENV:
         self.goal_x = np.random.uniform(SPAWN_BORDER, self.basis.size.width-SPAWN_BORDER)
         self.goal_y = np.random.uniform(SPAWN_BORDER, self.basis.size.height-SPAWN_BORDER)
         goal_fine = False
+        distance = 0
         while not goal_fine:
             goal_fine = True
+            distance = math.sqrt((self.goal_x-self.x)**2+(self.goal_y-self.y)**2)
+            if distance<GOAL_REACHED_DIST*2:
+                goal_fine=False
             for i in range(len(self.basis.obstacles)):
                 if self.basis.obstacles[i].Loc.x-self.basis.obstacles[i].Size.width/2<self.goal_x<self.basis.obstacles[i].Loc.x+self.basis.obstacles[i].Size.width/2 and self.basis.obstacles[i].Loc.y-self.basis.obstacles[i].Size.height/2<self.goal_y<self.basis.obstacles[i].Loc.y+self.basis.obstacles[i].Size.height/2:
                     goal_fine = False
                     self.goal_x = np.random.uniform(0, self.basis.size.width)
                     self.goal_y = np.random.uniform(0, self.basis.size.height)
+                    break
         self.goal_x = self.goal_x-self.basis.size.width/2
         self.goal_y = self.goal_y-self.basis.size.height/2
         p.loadURDF("goal.urdf", [self.goal_x, self.goal_y, 0.1])
@@ -85,9 +92,12 @@ class DRL_VENV:
         if math.isnan(position[0]) or math.isnan(position[1]) or math.isnan(position[2]):
             p.resetBasePositionAndOrientation(self.robotid, [0,0, position[2]], quaternion)
             done = True
+        p.resetBasePositionAndOrientation(self.robotid, [position[0], position[1], 0.25], quaternion)
+
+        dist_traveled = math.sqrt((position[0]-self.x)**2+(position[1]-self.y)**2)
 
         self.x = position[0]
-        self.y = position[2]
+        self.y = position[1]
         distance = np.linalg.norm(
             [self.x - self.goal_x, self.y, self.goal_y]
         )
@@ -98,12 +108,12 @@ class DRL_VENV:
 
         action = action.cpu().detach().numpy()
 
-        action_x = action[0]*MAX_SPEED*math.sin(yaw)
-        action_z = action[0]*MAX_SPEED*math.cos(yaw)
+        action_x = 1*MAX_SPEED*math.cos(yaw)
+        action_y = 1*MAX_SPEED*math.sin(yaw)
 
-        rotation_yaw = action[1]*MAX_ANGULAR_SPEED
+        rotation_yaw = action[0]*float(MAX_ANGULAR_SPEED)
 
-        p.resetBaseVelocity(self.robotid, [action_x, 0, action_z], [0, 0,rotation_yaw])
+        p.resetBaseVelocity(self.robotid, [action_x, action_y, 0], [0, 0, rotation_yaw])
 
         collision = self.get_collisions()
 
@@ -144,15 +154,15 @@ class DRL_VENV:
         if distance < GOAL_REACHED_DIST:
             achieved_goal = True
             done = True
-        robot_state = [distance, theta, action[0], action[1]]
-        reward = self.get_reward(target, collision, action)
+        robot_state = [distance, theta, action[0]]
+        #reward = self.get_reward(target, collision, action)
         #return robot_state, reward, done, target
-        return robot_state, collision, done, achieved_goal
+        return robot_state, collision, done, achieved_goal, dist_traveled
 
 
     def reset(self): # Create a new environment
         p.resetSimulation()
-        p.setGravity(0, 0, -9.81)
+        p.setGravity(0, 0, -GRAVITY)
         p.setTimeStep(0.01)
         p.setTimeStep(TIME_DELTA)
         self.environment_ids = []
@@ -192,7 +202,7 @@ class DRL_VENV:
         z=z-self.basis.size.height/2
         self.x = x
         self.y = z
-        obj_state.position = [x, 0.25, z]
+        obj_state.position = [x, z, 0.25]
         obj_state.orientation = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
 
         robotid = p.loadURDF("robot.urdf", obj_state.position, obj_state.orientation)
@@ -221,7 +231,7 @@ class DRL_VENV:
             [self.x - self.goal_x, self.y - self.goal_y]
         )
 
-        robot_state = [distance, theta, 0.0, 0.0]
+        robot_state = [distance, theta, 0.0]
         return robot_state
     @staticmethod
     def get_reward(target, collision, action):
