@@ -2,6 +2,7 @@ from drl_utils import Quaternion, ReplayMemory, ObjectState
 import pybullet as p
 import pybullet_data
 import numpy as np
+import random
 import os
 import time
 import math
@@ -92,7 +93,7 @@ class DRL_VENV:
         self.x = x
         self.y = y
         self.new_goal()
-        newangle = random.uniform(-ideal_angle, ideal_angle)
+        newangle = np.random.uniform(-ideal_angle, ideal_angle)
         return newangle
 
     def step(self, action):
@@ -205,10 +206,12 @@ class DRL_VENV:
             self.environment_dim += p.getNumJoints(self.environment_ids[i])
         print(self.environment_dim)
 
+        angle = self.reset_situation(ideal_angle)
+
+
         quaternion = Quaternion.from_euler(0, 0, angle)
         obj_state = self.initial_state
 
-        angle = self.reset_situation(ideal_angle)
 
         obj_state.position = [self.x, self.y, 0.25]
         obj_state.orientation = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
