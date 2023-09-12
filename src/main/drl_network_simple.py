@@ -226,11 +226,11 @@ def train(env, agent=None, plotter=None, prev_episode=0):
 
     plot_results()'''
 
-    initial_state = env.reset()
 
     ideal_angle = 0
     ideal_angle_episode = episode
 
+    initial_state = env.reset(ideal_angle)
 
     for episode in range(episode, EPISODES-1):
         ideal_angle_episode
