@@ -158,7 +158,11 @@ class DRL_VENV:
         dot = skew_x * 1 + skew_y * 0
         mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
         mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-        beta = math.acos(dot / (mag1 * mag2))
+        try:
+            beta = math.acos(dot / (mag1 * mag2))
+        except:
+            print("Divide by zero error in beta calculation")
+            beta = 0
         if skew_y < 0:
             if skew_x < 0:
                 beta = -beta

@@ -264,7 +264,7 @@ def train(env, agent=None, plotter=None, prev_episode=0):
             if done == True:
                 next_state = None
             if achieved_goal is True and timestep == 0:
-                state = env.reset()
+                state = env.reset(ideal_angle)
                 timestep = 0
                 done = False
                 achieved_goal = False
