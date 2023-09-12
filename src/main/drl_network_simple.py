@@ -32,6 +32,8 @@ ANGLE_WEIGHT = -2
 EPISODES = 40000
 TIMESTEP_CAP = 100
 SAVE_FREQ = 75 #Save model every x episodes
+IDEAL_PROBABILITY = 0.95
+IDEAL_ANGLE_SWITCH = np.pi/8
 
 BATCH_SIZE = SIMPLE_LAYER_1 #Batch size for training
 GAMMA = 0.99 #Discount factor
@@ -226,9 +228,13 @@ def train(env, agent=None, plotter=None, prev_episode=0):
 
     initial_state = env.reset()
 
+    ideal_angle = 0
+    ideal_angle_episode = episode
+
 
     for episode in range(episode, EPISODES-1):
-        state = env.reset()
+        ideal_angle_episode
+        state = env.reset(ideal_angle)
         initdist = state[0]
         initangle = state[1]
         done = False
@@ -310,6 +316,11 @@ def train(env, agent=None, plotter=None, prev_episode=0):
 
         plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide)
 
+        current_percent = plotter.get_ideal_probability(ideal_angle_episode, episode)
+
+        if current_percent >= IDEAL_PROBABILITY and ideal_angle <= np.pi:
+            ideal_angle += IDEAL_ANGLE_SWITCH
+            ideal_angle_episode = 0
         '''y.put(episode, avg)
         distances.put(episode, initdist)
 

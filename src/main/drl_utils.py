@@ -273,3 +273,16 @@ class Model_Plotter():
             "none_chance_y": self.none_chance_y
         }
         return stats
+
+    def get_ideal_probability(self, ideal_angle_episode, episode):
+        if ideal_angle_episode<100:
+            recent_achieves = self.achieve_history
+            for i in range(episode):
+                if i < episode-100:
+                    recent_achieves = np.delete(recent_achieves, 0)
+                    recent_achieves = np.resize(recent_achieves, recent_achieves.size -1)
+                else:
+                    break
+            return sum(recent_achieves)/100
+        else:
+            return 0
