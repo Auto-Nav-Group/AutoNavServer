@@ -23,7 +23,7 @@ SIMPLE_LAYER_2 = 256
 COLLISION_WEIGHT = -150
 TIME_WEIGHT = -6
 FINISH_WEIGHT = 150
-DIST_WEIGHT = 4
+DIST_WEIGHT = 2
 PASS_DIST_WEIGHT = 0
 CHALLENGE_WEIGHT = 10
 CHALLENGE_EXP_BASE = 1.25
@@ -31,7 +31,7 @@ ANGLE_WEIGHT = -2
 
 EPISODES = 40000
 TIMESTEP_CAP = 100
-SAVE_FREQ = 50 #Save model every x episodes
+SAVE_FREQ = 75 #Save model every x episodes
 
 BATCH_SIZE = SIMPLE_LAYER_1 #Batch size for training
 GAMMA = 0.99 #Discount factor
@@ -59,8 +59,8 @@ def get_reward(done, collision, timestep, achieved_goal, delta_dist, initdistanc
     if done:
         if achieved_goal:
             initangle = abs(initangle)/np.pi
-            dist_challenge = CHALLENGE_EXP_BASE**(initdistance)
-            angle_challenge = CHALLENGE_EXP_BASE**(initangle)
+            dist_challenge = CHALLENGE_EXP_BASE**initdistance
+            angle_challenge = CHALLENGE_EXP_BASE**initangle
             return FINISH_WEIGHT + time_weight + dist_challenge*CHALLENGE_WEIGHT + angle_challenge*CHALLENGE_WEIGHT, time_weight, dist_weight, angle_weight
         elif collision is not True:
             return COLLISION_WEIGHT + time_weight, time_weight, dist_weight, angle_weight
@@ -239,7 +239,6 @@ def train(env, agent=None, plotter=None, prev_episode=0):
         episode_dw = 0
         episode_aw = 0
         episode_achieve = 0
-        episode_none = 0
         episode_collide = 0
         log_probs = []
         rewards = []
@@ -256,8 +255,6 @@ def train(env, agent=None, plotter=None, prev_episode=0):
                 episode_collide = 1
             if achieved_goal is True:
                 episode_achieve = 1
-            if done and achieved_goal is False and collision is False:
-                episode_none = 1
             if done == True:
                 next_state = None
             if achieved_goal is True and timestep == 0:
@@ -311,7 +308,7 @@ def train(env, agent=None, plotter=None, prev_episode=0):
         if SAVE_FREQ != -1 and (episode+1) % SAVE_FREQ == 0:
             save(agent, FILE_NAME, FILE_LOCATION, plotter, episode, MEMORY)
 
-        plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide, episode_none)
+        plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide)
 
         '''y.put(episode, avg)
         distances.put(episode, initdist)

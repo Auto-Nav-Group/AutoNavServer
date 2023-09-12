@@ -10,7 +10,7 @@ TIME_DELTA = 0.1 # Time setup in simulation
 GUI = False # GUI flag
 GOAL_REACHED_DIST = 1 # Distance to goal to be considered reached
 MAX_SPEED = 5 # Maximum speed of the robot
-MAX_ANGULAR_SPEED = math.pi*2 # Maximum angular speed of the robot
+MAX_ANGULAR_SPEED = math.pi # Maximum angular speed of the robot
 TIP_ANGLE = 30
 
 GRAVITY = 0

@@ -155,7 +155,6 @@ class Model_Plotter():
         time_weight_y,
         achieve_chance_y,
         collision_chance_y,
-        none_chance_y
     ):
         if self.total_reward_y[99]==self.prev_total_reward or episode > 99:
             self.total_reward_y = np.delete(self.total_reward_y, 0)
@@ -182,7 +181,7 @@ class Model_Plotter():
 
         avg_y = sum(self.total_reward_y) / (episode + 1)
         if episode>100:
-            avg_y = sum(total_reward_y) / 100
+            avg_y = sum(self.total_reward_y) / 100
         self.avg_y.put(episode, avg_y)
 
         self.dist_weight_y.put(episode, dist_weight_y.cpu().detach().numpy())
@@ -191,29 +190,26 @@ class Model_Plotter():
 
         self.achieve_history.put(episode, achieve_chance_y)
         self.collision_history.put(episode, collision_chance_y)
-        self.none_history.put(episode, none_chance_y)
+        if achieve_chance_y == 0 and collision_chance_y == 0:
+            self.none_history.put(episode, 1)
 
         achieve_prob = 100*sum(self.achieve_history) / (episode + 1)
         collision_prob = 100*sum(self.collision_history) / (episode + 1)
-        none_prob = 100*sum(self.none_history) / (episode + 1)
         if episode > 100:
             recent_achieves = self.achieve_history
             recent_collisions = self.collision_history
-            recent_nones = self.none_history
             for i in range(episode):
                 if i < episode - 100:
                     recent_achieves = np.delete(recent_achieves, 0)
                     recent_achieves = np.resize(recent_achieves, recent_achieves.size - 1)
                     recent_collisions = np.delete(recent_collisions, 0)
                     recent_collisions = np.resize(recent_collisions, recent_achieves.size - 1)
-                    recent_nones = np.delete(recent_nones, 0)
-                    recent_nones = np.resize(recent_nones, recent_achieves.size - 1)
                 else:
                     break
             achieve_prob = sum(recent_achieves)
             collision_prob = sum(recent_collisions)
-            none_prob = sum(recent_nones)
 
+        none_prob = 100-achieve_prob-collision_prob
         self.achieve_chance_y.put(episode, achieve_prob)
         self.collision_chance_y.put(episode, collision_prob)
         self.none_chance_y.put(episode, none_prob)
