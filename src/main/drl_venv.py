@@ -75,6 +75,26 @@ class DRL_VENV:
         self.goal_y = self.goal_y-self.basis.size.height/2
         p.loadURDF("goal.urdf", [self.goal_x, self.goal_y, 0.1])
 
+    def reset_situation(self, ideal_angle):
+        x = 0
+        y = 0
+        position_fine = False
+        while not position_fine:
+            x = np.random.uniform(SPAWN_BORDER, self.basis.size.width-SPAWN_BORDER)
+            y = np.random.uniform(SPAWN_BORDER, self.basis.size.height-SPAWN_BORDER)
+            position_fine = True
+            for i in range(len(self.basis.obstacles)):
+                if self.basis.vobstacles[i].Loc.x < x < self.basis.vobstacles[i].Loc.x + self.basis.vobstacles[i].Size.width and self.basis.vobstacles[i].Loc.y < y < self.basis.vobstacles[i].Loc.y + self.basis.vobstacles[i].Size.height:
+                    position_fine = False
+                    break
+        x=x-self.basis.size.width/2
+        y=y-self.basis.size.height/2
+        self.x = x
+        self.y = y
+        self.new_goal()
+        newangle = random.uniform(-ideal_angle, ideal_angle)
+        return newangle
+
     def step(self, action):
         target = False
         done = False
@@ -162,7 +182,7 @@ class DRL_VENV:
         return robot_state, collision, done, achieved_goal, dist_traveled
 
 
-    def reset(self): # Create a new environment
+    def reset(self, ideal_angle): # Create a new environment
         p.resetSimulation()
         p.setGravity(0, 0, -GRAVITY)
         p.setTimeStep(0.01)
@@ -184,32 +204,17 @@ class DRL_VENV:
         for i in range(len(self.environment_ids)):
             self.environment_dim += p.getNumJoints(self.environment_ids[i])
         print(self.environment_dim)
-        # Determine new random orientation
-        angle = np.random.uniform(-np.pi, np.pi) #Generate a random angle to start at
+
         quaternion = Quaternion.from_euler(0, 0, angle)
         obj_state = self.initial_state
 
-        x = 0
-        z = 0
-        position_fine = False
-        while not position_fine:
-            x = np.random.uniform(SPAWN_BORDER, self.basis.size.width-SPAWN_BORDER)
-            z = np.random.uniform(SPAWN_BORDER, self.basis.size.height-SPAWN_BORDER)
-            position_fine = True
-            for i in range(len(self.basis.obstacles)):
-                if self.basis.vobstacles[i].Loc.x < x < self.basis.vobstacles[i].Loc.x + self.basis.vobstacles[i].Size.width and self.basis.vobstacles[i].Loc.y < z < self.basis.vobstacles[i].Loc.y + self.basis.vobstacles[i].Size.height:
-                    position_fine = False
-                    break
-        x=x-self.basis.size.width/2
-        z=z-self.basis.size.height/2
-        self.x = x
-        self.y = z
-        obj_state.position = [x, z, 0.25]
+        angle = self.reset_situation(ideal_angle)
+
+        obj_state.position = [self.x, self.y, 0.25]
         obj_state.orientation = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
 
         robotid = p.loadURDF("robot.urdf", obj_state.position, obj_state.orientation)
 
-        self.new_goal()
 
         if GUI:
             time.sleep(TIME_DELTA)
