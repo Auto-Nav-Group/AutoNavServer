@@ -157,7 +157,7 @@ class Model_Plotter():
         collision_chance_y,
         none_chance_y
     ):
-        if self.total_reward_y[99]==self.prev_total_reward:
+        if self.total_reward_y[99]==self.prev_total_reward or episode > 99:
             self.total_reward_y = np.delete(self.total_reward_y, 0)
             self.total_reward_y = np.append(self.total_reward_y, 100)
             if type(total_reward_y) == torch.Tensor:
@@ -182,14 +182,7 @@ class Model_Plotter():
 
         avg_y = sum(self.total_reward_y) / (episode + 1)
         if episode>100:
-            recent_rewards = self.total_reward_y
-            for i in range(len(self.total_reward_y)):
-                if i<episode-100:
-                    recent_rewards = np.delete(recent_rewards, 0)
-                    recent_rewards = np.resize(recent_rewards, recent_rewards.size-1)
-                else:
-                    break
-            avg_y = sum(recent_rewards) / 100
+            avg_y = sum(total_reward_y) / 100
         self.avg_y.put(episode, avg_y)
 
         self.dist_weight_y.put(episode, dist_weight_y.cpu().detach().numpy())
@@ -254,18 +247,18 @@ class Model_Plotter():
 
 
     def load(self, stats):
-        self.avg_y = stats["avg_y"]
-        self.dist_y = stats["dist_y"]
-        self.total_reward_y = stats["total_reward_y"]
-        self.dist_weight_y = stats["dist_weight_y"]
-        self.angle_weight_y = stats["angle_weight_y"]
-        self.time_weight_y = stats["time_weight_y"]
-        self.achieve_history = stats["achieve_history"]
-        self.collision_history = stats["collision_history"]
-        self.none_history = stats["none_history"]
-        self.achieve_chance_y = stats["achieve_chance_y"]
-        self.collision_chance_y = stats["collision_chance_y"]
-        self.none_chance_y = stats["none_chance_y"]
+        self.avg_y = np.asarray(stats["avg_y"])
+        self.dist_y = np.asarray(stats["dist_y"])
+        self.total_reward_y = np.asarray(stats["total_reward_y"])
+        self.dist_weight_y = np.asarray(stats["dist_weight_y"])
+        self.angle_weight_y = np.asarray(stats["angle_weight_y"])
+        self.time_weight_y = np.asarray(stats["time_weight_y"])
+        self.achieve_history = np.asarray(stats["achieve_history"])
+        self.collision_history = np.asarray(stats["collision_history"])
+        self.none_history = np.asarray(stats["none_history"])
+        self.achieve_chance_y = np.asarray(stats["achieve_chance_y"])
+        self.collision_chance_y = np.asarray(stats["collision_chance_y"])
+        self.none_chance_y = np.asarray(stats["none_chance_y"])
 
 
     def save(self):

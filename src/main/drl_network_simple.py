@@ -366,10 +366,10 @@ def load(agent, filename, directory):
             "angle_weight_y" : np.asarray(stats["angle_weight_y"]),
             "time_weight_y" : np.asarray(stats["time_weight_y"]),
             "achieve_history" : np.asarray(stats["achieve_history"]),
-            "collision_history" : np.asarray(stats["collide_history"]),
+            "collision_history" : np.asarray(stats["collision_history"]),
             "none_history" : np.asarray(stats["none_history"]),
             "achieve_chance_y" : np.asarray(stats["achieve_chance_y"]),
-            "collide_chance_y" : np.asarray(stats["collide_chance_y"]),
+            "collision_chance_y" : np.asarray(stats["collision_chance_y"]),
             "none_chance_y" : np.asarray(stats["none_chance_y"])
         }
         plotter.load(stats)
