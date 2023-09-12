@@ -119,8 +119,17 @@ class Model_Plotter():
         self.angle_weight_y = np.zeros(episodes)
         self.time_weight_x = np.arange(episodes)
         self.time_weight_y = np.zeros(episodes)
+        self.achieve_history = np.zeros(episodes)
+        self.collision_history = np.zeros(episodes)
+        self.none_history = np.zeros(episodes)
+        self.achieve_chance_x = np.arange(episodes)
+        self.achieve_chance_y = np.zeros(episodes)
+        self.collision_chance_x = np.arange(episodes)
+        self.collision_chance_y = np.zeros(episodes)
+        self.none_chance_x = np.arange(episodes)
+        self.none_chance_y = np.zeros(episodes)
 
-        self.fig, self.ax = plt.subplots(4, figsize=(10,6))
+        self.fig, self.ax = plt.subplots(5, figsize=(10,6))
         self.fig.suptitle("Training Metrics")
         self.avg_line, = self.ax[0].plot(self.avg_x, self.avg_y, label="Average Reward", color="blue")
         self.dist_line, = self.ax[1].plot(self.dist_x, self.dist_y, label="Distance Reward", color="red")
@@ -128,7 +137,11 @@ class Model_Plotter():
         self.dist_weight_line, = self.ax[3].plot(self.dist_weight_x, self.dist_weight_y, label="Distance Weight", color="red")
         self.angle_weight_line, = self.ax[3].plot(self.angle_weight_x, self.angle_weight_y, label="Angle Weight", color="blue")
         self.time_weight_line, = self.ax[3].plot(self.time_weight_x, self.time_weight_y, label="Time Weight", color="green")
+        self.achieve_line, = self.ax[4].plot(self.achieve_chance_x, self.achieve_chance_y, label="Achieve Chance", color="green")
+        self.collision_line, = self.ax[4].plot(self.collision_chance_x, self.collision_chance_y, label="Collision Chance", color="red")
+        self.none_line, = self.ax[4].plot(self.none_chance_x, self.none_chance_y, label="None Chance", color="blue")
         self.ax[3].legend(handles=[self.dist_weight_line, self.angle_weight_line, self.time_weight_line])
+        self.ax[4].legend(handles=[self.achieve_line, self.collision_line, self.none_line])
 
         plt.show()
 
@@ -139,7 +152,10 @@ class Model_Plotter():
         total_reward_y,
         dist_weight_y,
         angle_weight_y,
-        time_weight_y
+        time_weight_y,
+        achieve_chance_y,
+        collision_chance_y,
+        none_chance_y
     ):
         if self.total_reward_y[99]==self.prev_total_reward:
             self.total_reward_y = np.delete(self.total_reward_y, 0)
@@ -170,7 +186,8 @@ class Model_Plotter():
             for i in range(len(self.total_reward_y)):
                 if i<episode-100:
                     recent_rewards = np.delete(recent_rewards, 0)
-                    recent_rewards = np.resize(recent_rewards, 100)
+                    recent_rewards = np.resize(recent_rewards, recent_rewards.size-1)
+                else:
                     break
             avg_y = sum(recent_rewards) / 100
         self.avg_y.put(episode, avg_y)
@@ -179,6 +196,34 @@ class Model_Plotter():
         self.angle_weight_y.put(episode, angle_weight_y.cpu().detach().numpy())
         self.time_weight_y.put(episode, time_weight_y)
 
+        self.achieve_history.put(episode, achieve_chance_y)
+        self.collision_history.put(episode, collision_chance_y)
+        self.none_history.put(episode, none_chance_y)
+
+        achieve_prob = 100*sum(self.achieve_history) / (episode + 1)
+        collision_prob = 100*sum(self.collision_history) / (episode + 1)
+        none_prob = 100*sum(self.none_history) / (episode + 1)
+        if episode > 100:
+            recent_achieves = self.achieve_history
+            recent_collisions = self.collision_history
+            recent_nones = self.none_history
+            for i in range(episode):
+                if i < episode - 100:
+                    recent_achieves = np.delete(recent_achieves, 0)
+                    recent_achieves = np.resize(recent_achieves, recent_achieves.size - 1)
+                    recent_collisions = np.delete(recent_collisions, 0)
+                    recent_collisions = np.resize(recent_collisions, recent_achieves.size - 1)
+                    recent_nones = np.delete(recent_nones, 0)
+                    recent_nones = np.resize(recent_nones, recent_achieves.size - 1)
+                else:
+                    break
+            achieve_prob = sum(recent_achieves)
+            collision_prob = sum(recent_collisions)
+            none_prob = sum(recent_nones)
+
+        self.achieve_chance_y.put(episode, achieve_prob)
+        self.collision_chance_y.put(episode, collision_prob)
+        self.none_chance_y.put(episode, none_prob)
 
 
         self.total_reward_line.set_data(self.total_reward_x, self.total_reward_y)
@@ -187,6 +232,9 @@ class Model_Plotter():
         self.dist_weight_line.set_data(self.dist_weight_x, self.dist_weight_y)
         self.angle_weight_line.set_data(self.angle_weight_x, self.angle_weight_y)
         self.time_weight_line.set_data(self.time_weight_x, self.time_weight_y)
+        self.achieve_line.set_data(self.achieve_chance_x, self.achieve_chance_y)
+        self.collision_line.set_data(self.collision_chance_x, self.collision_chance_y)
+        self.none_line.set_data(self.none_chance_x, self.none_chance_y)
 
         self.ax[0].set_xlim(0, episode+1)
         self.ax[0].set_ylim(np.min(self.avg_y)-1, np.max(self.avg_y)+1)
@@ -196,6 +244,9 @@ class Model_Plotter():
         self.ax[2].set_ylim(np.min(self.total_reward_y)-1, np.max(self.total_reward_y)+1)
         self.ax[3].set_xlim(0, episode+1)
         self.ax[3].set_ylim(min(np.min(self.dist_weight_y), np.min(self.angle_weight_y), np.min(self.time_weight_y)), max(np.max(self.dist_weight_y), np.max(self.angle_weight_y), np.max(self.time_weight_y)))
+        self.ax[4].set_xlim(0, episode+1)
+        self.ax[4].set_ylim(0, 100)
+
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -209,6 +260,13 @@ class Model_Plotter():
         self.dist_weight_y = stats["dist_weight_y"]
         self.angle_weight_y = stats["angle_weight_y"]
         self.time_weight_y = stats["time_weight_y"]
+        self.achieve_history = stats["achieve_history"]
+        self.collision_history = stats["collision_history"]
+        self.none_history = stats["none_history"]
+        self.achieve_chance_y = stats["achieve_chance_y"]
+        self.collision_chance_y = stats["collision_chance_y"]
+        self.none_chance_y = stats["none_chance_y"]
+
 
     def save(self):
         stats = {
@@ -217,6 +275,12 @@ class Model_Plotter():
             "total_reward_y": self.total_reward_y,
             "dist_weight_y": self.dist_weight_y,
             "angle_weight_y": self.angle_weight_y,
-            "time_weight_y": self.time_weight_y
+            "time_weight_y": self.time_weight_y,
+            "achieve_history": self.achieve_history,
+            "collision_history": self.collision_history,
+            "none_history": self.none_history,
+            "achieve_chance_y": self.achieve_chance_y,
+            "collision_chance_y": self.collision_chance_y,
+            "none_chance_y": self.none_chance_y
         }
         return stats

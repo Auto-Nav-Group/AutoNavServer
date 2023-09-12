@@ -25,6 +25,8 @@ TIME_WEIGHT = -6
 FINISH_WEIGHT = 150
 DIST_WEIGHT = 4
 PASS_DIST_WEIGHT = 0
+CHALLENGE_WEIGHT = 10
+CHALLENGE_EXP_BASE = 1.25
 ANGLE_WEIGHT = -2
 
 EPISODES = 40000
@@ -43,7 +45,7 @@ MEMORY = ReplayMemory(100000)
 
 TRAINING_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def get_reward(done, collision, timestep, achieved_goal, delta_dist, initdistance, ovr_dist, angle):
+def get_reward(done, collision, timestep, achieved_goal, delta_dist, initdistance, initangle, ovr_dist, angle):
     dist_weight = delta_dist*DIST_WEIGHT
     angle_weight = (abs(angle)/np.pi) * ANGLE_WEIGHT
     #time_weight = TIME_WEIGHT*(initdistance/MAX_SPEED-timestep/TIME_DELTA)
@@ -56,7 +58,12 @@ def get_reward(done, collision, timestep, achieved_goal, delta_dist, initdistanc
         time_weight = TIME_WEIGHT
     if done:
         if achieved_goal:
-            return FINISH_WEIGHT + time_weight, time_weight, dist_weight, angle_weight
+            initangle = abs(initangle)/np.pi
+            dist_challenge = CHALLENGE_EXP_BASE**(initdistance)
+            angle_challenge = CHALLENGE_EXP_BASE**(initangle)
+            return FINISH_WEIGHT + time_weight + dist_challenge*CHALLENGE_WEIGHT + angle_challenge*CHALLENGE_WEIGHT, time_weight, dist_weight, angle_weight
+        elif collision is not True:
+            return COLLISION_WEIGHT + time_weight, time_weight, dist_weight, angle_weight
     if collision is True:
         return COLLISION_WEIGHT + time_weight, time_weight, dist_weight, angle_weight
     return total_weight, time_weight, dist_weight, angle_weight
@@ -223,6 +230,7 @@ def train(env, agent=None, plotter=None, prev_episode=0):
     for episode in range(episode, EPISODES-1):
         state = env.reset()
         initdist = state[0]
+        initangle = state[1]
         done = False
         achieved_goal = False
         timestep = 0
@@ -230,6 +238,9 @@ def train(env, agent=None, plotter=None, prev_episode=0):
         episode_tw = 0
         episode_dw = 0
         episode_aw = 0
+        episode_achieve = 0
+        episode_none = 0
+        episode_collide = 0
         log_probs = []
         rewards = []
         ovr_dist = 0
@@ -242,6 +253,11 @@ def train(env, agent=None, plotter=None, prev_episode=0):
             ovr_dist += dist_traveled
             if collision is True:
                 done = True
+                episode_collide = 1
+            if achieved_goal is True:
+                episode_achieve = 1
+            if done and achieved_goal is False and collision is False:
+                episode_none = 1
             if done == True:
                 next_state = None
             if achieved_goal is True and timestep == 0:
@@ -255,9 +271,9 @@ def train(env, agent=None, plotter=None, prev_episode=0):
                 reward = 0
                 tw, dw, aw = 0, 0, 0
                 if (next_state is not None):
-                    reward, tw, dw, aw  = get_reward(done, collision, timestep, achieved_goal, (initdist-next_state[0])/initdist, initdist, ovr_dist, next_state[1])
+                    reward, tw, dw, aw  = get_reward(done, collision, timestep, achieved_goal, (initdist-next_state[0])/initdist, initdist, initangle, ovr_dist, next_state[1])
                 else:
-                    reward, tw, dw, aw = get_reward(done, collision, timestep, achieved_goal, 0, 0, 0, 0)
+                    reward, tw, dw, aw = get_reward(done, collision, timestep, achieved_goal, initangle, 0, 0, 0, 0)
                 episode_reward += reward
                 episode_tw += tw
                 episode_dw += dw
@@ -295,7 +311,7 @@ def train(env, agent=None, plotter=None, prev_episode=0):
         if SAVE_FREQ != -1 and (episode+1) % SAVE_FREQ == 0:
             save(agent, FILE_NAME, FILE_LOCATION, plotter, episode, MEMORY)
 
-        plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw)
+        plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide, episode_none)
 
         '''y.put(episode, avg)
         distances.put(episode, initdist)
@@ -348,7 +364,13 @@ def load(agent, filename, directory):
             "total_reward_y" : np.asarray(stats["total_reward_y"]),
             "dist_weight_y" : np.asarray(stats["dist_weight_y"]),
             "angle_weight_y" : np.asarray(stats["angle_weight_y"]),
-            "time_weight_y" : np.asarray(stats["time_weight_y"])
+            "time_weight_y" : np.asarray(stats["time_weight_y"]),
+            "achieve_history" : np.asarray(stats["achieve_history"]),
+            "collision_history" : np.asarray(stats["collide_history"]),
+            "none_history" : np.asarray(stats["none_history"]),
+            "achieve_chance_y" : np.asarray(stats["achieve_chance_y"]),
+            "collide_chance_y" : np.asarray(stats["collide_chance_y"]),
+            "none_chance_y" : np.asarray(stats["none_chance_y"])
         }
         plotter.load(stats)
     with open(f"{directory}/{filename}/memory.json", "r") as infile:
