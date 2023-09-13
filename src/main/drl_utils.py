@@ -279,7 +279,7 @@ class Model_Plotter():
         return stats
 
     def get_ideal_probability(self, ideal_angle_episode, episode):
-        if ideal_angle_episode<100:
+        if ideal_angle_episode>99:
             recent_achieves = self.achieve_history
             for i in range(episode):
                 if i < episode-100:
