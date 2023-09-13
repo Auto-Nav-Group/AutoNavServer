@@ -17,17 +17,20 @@ import random
 FILE_LOCATION = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\models"
 FILE_NAME = "SampleModel"
 
+STATE_DIM = 5
+ACTION_DIM = 1
+
 SIMPLE_LAYER_1 = 256
 SIMPLE_LAYER_2 = 256
 
 COLLISION_WEIGHT = -150
-TIME_WEIGHT = -6
+TIME_WEIGHT = 0#-6
 FINISH_WEIGHT = 150
-DIST_WEIGHT = 2
+DIST_WEIGHT = 0#2
 PASS_DIST_WEIGHT = 0
 CHALLENGE_WEIGHT = 10
 CHALLENGE_EXP_BASE = 1.25
-ANGLE_WEIGHT = -2
+ANGLE_WEIGHT = 0#-2
 
 EPISODES = 40000
 TIMESTEP_CAP = 100
@@ -176,9 +179,9 @@ def train(env, agent=None, plotter=None, prev_episode=0):
         optimizer.step()
 
     if agent is None:
-        agent = SimpleActor(3, 1).to(TRAINING_DEVICE)
+        agent = SimpleActor(STATE_DIM, ACTION_DIM).to(TRAINING_DEVICE)
     prev = 0
-    targetagent = SimpleActor(3, 1).to(TRAINING_DEVICE)
+    targetagent = SimpleActor(STATE_DIM, ACTION_DIM).to(TRAINING_DEVICE)
     targetagent.load_state_dict(agent.state_dict())
 
     agent.to(TRAINING_DEVICE)
@@ -338,7 +341,7 @@ def train(env, agent=None, plotter=None, prev_episode=0):
 
 
 def train_load(env):
-    agent = SimpleActor(3, 1)
+    agent = SimpleActor(STATE_DIM, ACTION_DIM)
     agent, stats, episode = load(agent, FILE_NAME, FILE_LOCATION)
     train(env, agent, stats, episode)
 

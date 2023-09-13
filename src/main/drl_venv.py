@@ -10,7 +10,7 @@ import math
 TIME_DELTA = 0.1 # Time setup in simulation
 GUI = False # GUI flag
 GOAL_REACHED_DIST = 1 # Distance to goal to be considered reached
-MIN_START_DIST = 3 # Minimum distance from start to goal
+MIN_START_DIST = 6 # Minimum distance from start to goal
 MAX_SPEED = 5 # Maximum speed of the robot
 MAX_ANGULAR_SPEED = math.pi # Maximum angular speed of the robot
 TIP_ANGLE = 30
@@ -126,9 +126,7 @@ class DRL_VENV:
 
         self.x = position[0]
         self.y = position[1]
-        distance = np.linalg.norm(
-            [self.x - self.goal_x, self.y, self.goal_y]
-        )
+        distance = math.sqrt((self.goal_x-self.x)**2+(self.goal_y-self.y)**2)
         q = Quaternion()
         q.define(quaternion[3], quaternion[0], quaternion[1], quaternion[2])
         quaternion = q
@@ -186,7 +184,7 @@ class DRL_VENV:
         if distance < GOAL_REACHED_DIST:
             achieved_goal = True
             done = True
-        robot_state = [distance, theta, action[0]]
+        robot_state = [distance, theta, self.x, self.y, action[0]]
         #reward = self.get_reward(target, collision, action)
         #return robot_state, reward, done, target
         return robot_state, collision, done, achieved_goal, dist_traveled
@@ -246,11 +244,9 @@ class DRL_VENV:
                 beta = 0 - beta
         theta = beta - angle
 
-        distance = np.linalg.norm(
-            [self.x - self.goal_x, self.y - self.goal_y]
-        )
+        distance = math.sqrt((self.goal_x-self.x)**2+(self.goal_y-self.y)**2)
 
-        robot_state = [distance, theta, 0.0]
+        robot_state = [distance, theta, self.x, self.y, 0.0]
         return robot_state
     @staticmethod
     def get_reward(target, collision, action):
