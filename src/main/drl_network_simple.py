@@ -228,12 +228,18 @@ def train(env, agent=None, plotter=None, prev_episode=0):
 
 
     ideal_angle = 0
-    ideal_angle_episode = episode
 
     initial_state = env.reset(ideal_angle)
 
+    ideal_angle_episode = episode
+
     for episode in range(episode, EPISODES-1):
-        ideal_angle_episode
+        current_percent = plotter.get_ideal_probability(ideal_angle_episode, episode)
+        if current_percent >= IDEAL_PROBABILITY and ideal_angle <= np.pi:
+            ideal_angle += IDEAL_ANGLE_SWITCH
+            ideal_angle_episode = 0
+        else:
+            ideal_angle_episode = episode
         state = env.reset(ideal_angle)
         initdist = state[0]
         initangle = state[1]
@@ -263,35 +269,27 @@ def train(env, agent=None, plotter=None, prev_episode=0):
                 episode_achieve = 1
             if done == True:
                 next_state = None
-            if achieved_goal is True and timestep == 0:
-                state = env.reset(ideal_angle)
-                timestep = 0
-                done = False
-                achieved_goal = False
-                episode_reward = 0
-                initdist = state[0]
+            reward = 0
+            tw, dw, aw = 0, 0, 0
+            if (next_state is not None):
+                reward, tw, dw, aw  = get_reward(done, collision, timestep, achieved_goal, (initdist-next_state[0])/initdist, initdist, initangle, ovr_dist, next_state[1])
             else:
-                reward = 0
-                tw, dw, aw = 0, 0, 0
-                if (next_state is not None):
-                    reward, tw, dw, aw  = get_reward(done, collision, timestep, achieved_goal, (initdist-next_state[0])/initdist, initdist, initangle, ovr_dist, next_state[1])
-                else:
-                    reward, tw, dw, aw = get_reward(done, collision, timestep, achieved_goal, initangle, 0, 0, 0, 0)
-                episode_reward += reward
-                episode_tw += tw
-                episode_dw += dw
-                episode_aw += aw
-                rewards.append(reward)
-                MEMORY.push(state_tensor, action, next_state, torch.tensor([reward]).to(TRAINING_DEVICE))
-                state = next_state
-                timestep += 1
+                reward, tw, dw, aw = get_reward(done, collision, timestep, achieved_goal, initangle, 0, 0, 0, 0)
+            episode_reward += reward
+            episode_tw += tw
+            episode_dw += dw
+            episode_aw += aw
+            rewards.append(reward)
+            MEMORY.push(state_tensor, action, next_state, torch.tensor([reward]).to(TRAINING_DEVICE))
+            state = next_state
+            timestep += 1
 
-                optimize()
+            optimize()
 
-                targetagent_dict = targetagent.state_dict()
-                agent_dict = agent.state_dict()
-                for key in agent_dict:
-                    targetagent_dict[key] = Tau * agent_dict[key] + (1 - Tau) * targetagent_dict[key]
+            targetagent_dict = targetagent.state_dict()
+            agent_dict = agent.state_dict()
+            for key in agent_dict:
+                targetagent_dict[key] = Tau * agent_dict[key] + (1 - Tau) * targetagent_dict[key]
 
 
         clip_grad_norm_(agent.parameters(), 0.5)
@@ -316,11 +314,7 @@ def train(env, agent=None, plotter=None, prev_episode=0):
 
         plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide)
 
-        current_percent = plotter.get_ideal_probability(ideal_angle_episode, episode)
 
-        if current_percent >= IDEAL_PROBABILITY and ideal_angle <= np.pi:
-            ideal_angle += IDEAL_ANGLE_SWITCH
-            ideal_angle_episode = 0
         '''y.put(episode, avg)
         distances.put(episode, initdist)
 

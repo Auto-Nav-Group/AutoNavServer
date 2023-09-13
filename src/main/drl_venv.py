@@ -10,6 +10,7 @@ import math
 TIME_DELTA = 0.1 # Time setup in simulation
 GUI = False # GUI flag
 GOAL_REACHED_DIST = 1 # Distance to goal to be considered reached
+MIN_START_DIST = 3 # Minimum distance from start to goal
 MAX_SPEED = 5 # Maximum speed of the robot
 MAX_ANGULAR_SPEED = math.pi # Maximum angular speed of the robot
 TIP_ANGLE = 30
@@ -62,7 +63,7 @@ class DRL_VENV:
         while not goal_fine:
             goal_fine = True
             distance = math.sqrt((self.goal_x-self.x)**2+(self.goal_y-self.y)**2)
-            if distance<GOAL_REACHED_DIST*2:
+            if distance<MIN_START_DIST:
                 goal_fine=False
                 self.goal_x = np.random.uniform(0, self.basis.size.width)
                 self.goal_y = np.random.uniform(0, self.basis.size.height)
@@ -83,17 +84,21 @@ class DRL_VENV:
         while not position_fine:
             x = np.random.uniform(SPAWN_BORDER, self.basis.size.width-SPAWN_BORDER)
             y = np.random.uniform(SPAWN_BORDER, self.basis.size.height-SPAWN_BORDER)
-            position_fine = True
+            is_fine = True
             for i in range(len(self.basis.obstacles)):
                 if self.basis.vobstacles[i].Loc.x < x < self.basis.vobstacles[i].Loc.x + self.basis.vobstacles[i].Size.width and self.basis.vobstacles[i].Loc.y < y < self.basis.vobstacles[i].Loc.y + self.basis.vobstacles[i].Size.height:
-                    position_fine = False
+                    is_fine = False
                     break
+            position_fine = is_fine
+            if position_fine:
+                break
         x=x-self.basis.size.width/2
         y=y-self.basis.size.height/2
         self.x = x
         self.y = y
         self.new_goal()
-        newangle = np.random.uniform(-ideal_angle, ideal_angle)
+        angle_to_goal = math.atan2(self.goal_y-self.y, self.goal_x-self.x)
+        newangle = np.random.uniform(angle_to_goal-ideal_angle, angle_to_goal+ideal_angle)
         return newangle
 
     def step(self, action):
@@ -220,7 +225,7 @@ class DRL_VENV:
         obj_state.position = [self.x, self.y, 0.25]
         obj_state.orientation = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
 
-        robotid = p.loadURDF("robot.urdf", obj_state.position, obj_state.orientation)
+        self.robotid = p.loadURDF("robot.urdf", obj_state.position, obj_state.orientation)
 
 
         if GUI:

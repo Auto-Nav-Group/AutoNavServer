@@ -184,8 +184,12 @@ class Model_Plotter():
             avg_y = sum(self.total_reward_y) / 100
         self.avg_y.put(episode, avg_y)
 
-        self.dist_weight_y.put(episode, dist_weight_y.cpu().detach().numpy())
-        self.angle_weight_y.put(episode, angle_weight_y.cpu().detach().numpy())
+        if type(dist_weight_y) == torch.Tensor and type(angle_weight_y) == torch.Tensor:
+            self.dist_weight_y.put(episode, dist_weight_y.cpu().detach().numpy())
+            self.angle_weight_y.put(episode, angle_weight_y.cpu().detach().numpy())
+        else:
+            self.dist_weight_y.put(episode, dist_weight_y)
+            self.angle_weight_y.put(episode, angle_weight_y)
         self.time_weight_y.put(episode, time_weight_y)
 
         self.achieve_history.put(episode, achieve_chance_y)
