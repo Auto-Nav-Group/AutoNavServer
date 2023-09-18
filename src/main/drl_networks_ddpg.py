@@ -183,10 +183,10 @@ class TrainingExecutor:
             self.plotter = Model_Plotter(num_episodes)
         visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
         for episode in range(start_episode, num_episodes):
-            state, dist = env.reset()
+            state, dist, theta = env.reset()
             visualizer.start(state[1], state[2], state[3], state[4])
             initdist = dist
-            initangle = state[1]
+            initangle = theta
             state = torch.FloatTensor(state).to(DEVICE)
             noise.reset()
             episode_reward = 0
@@ -208,9 +208,9 @@ class TrainingExecutor:
                 action = noise.get_action(action, step)
                 actions.append(torch.tensor(action))
                 states.append(state)
-                next_state, collision, done, achieved_goal, dist_traveled = env.step(action)
+                next_state, collision, done, achieved_goal, dist_traveled, theta = env.step(action)
                 ovr_dist += dist_traveled
-                reward, tw, dw, aw = self.get_reward(done, collision, step, achieved_goal, dist_traveled, initdist, initangle, ovr_dist, next_state[0])
+                reward, tw, dw, aw = self.get_reward(done, collision, step, achieved_goal, dist_traveled, initdist, initangle, ovr_dist, theta)
                 self.ddpg.mem.push(state, torch.tensor(action).to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE))
                 episode_reward += reward
                 episode_tw += tw

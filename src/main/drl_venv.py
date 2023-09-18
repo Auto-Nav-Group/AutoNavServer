@@ -35,6 +35,7 @@ class DRL_VENV:
         self.goal_y = 0
         self.x = 0
         self.y = 0
+        self.gangle = 0
         self.obstacles = []
         self.lidar_dists = []
         self.pybullet_instance = p
@@ -195,10 +196,10 @@ class DRL_VENV:
         if distance < GOAL_REACHED_DIST:
             achieved_goal = True
             done = True
-        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, action[0], self.run_lidar()]
+        robot_state = [self.x, self.y, self.goal_x, self.goal_y, angle, self.gangle, self.run_lidar()]
         #reward = self.get_reward(target, collision, action)
         #return robot_state, reward, done, target
-        return robot_state, collision, done, achieved_goal, dist_traveled
+        return robot_state, collision, done, achieved_goal, dist_traveled, theta
 
 
     def reset(self, ideal_angle=np.pi): # Create a new environment
@@ -257,8 +258,8 @@ class DRL_VENV:
 
         distance = math.sqrt((self.goal_x-self.x)**2+(self.goal_y-self.y)**2)
 
-        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, 0.0, self.run_lidar()]
-        return robot_state, distance
+        robot_state = [self.x, self.y, self.goal_x, self.goal_y, angle, self.gangle, self.run_lidar()]
+        return robot_state, distance, theta
 
     def reload(self, state, ideal_angle):
         p.resetSimulation()
@@ -307,8 +308,8 @@ class DRL_VENV:
 
         distance = math.sqrt((self.goal_x - self.x) ** 2 + (self.goal_y - self.y) ** 2)
 
-        robot_state = [distance, theta, self.x, self.y, self.goal_x, self.goal_y, 0.0, self.run_lidar()]
-        return robot_state
+        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, 0.0, self.run_lidar()]
+        return robot_state, theta
 
 
 
