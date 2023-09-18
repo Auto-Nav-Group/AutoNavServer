@@ -3,6 +3,7 @@ import random
 import json
 import torch
 import matplotlib.pyplot as plt
+from colour import Color
 from json import JSONEncoder
 from collections import namedtuple
 
@@ -44,7 +45,6 @@ class Quaternion:
         roll = np.arctan2(2*(self.w*self.x+self.y*self.z), 1-2*(self.x**2+self.y**2))
         pitch = np.arcsin(2*(self.w*self.y-self.z*self.x))
         yaw = np.arctan2(2*(self.w*self.z+self.x*self.y), 1-2*(self.y**2+self.z**2))
-
         return roll, pitch, yaw
 
 import random
@@ -110,7 +110,7 @@ class Model_Plotter():
         self.avg_x = np.arange(episodes)
         self.avg_y = np.zeros(episodes)
         self.dist_x = np.arange(episodes)
-        self.dist_y = np.empty(episodes)
+        self.dist_y = np.zeros(episodes)
         self.total_reward_x = np.arange(100)
         self.total_reward_y = np.zeros(100)
         self.dist_weight_x = np.arange(episodes)
@@ -213,10 +213,33 @@ class Model_Plotter():
             achieve_prob = sum(recent_achieves)
             collision_prob = sum(recent_collisions)
 
-        none_prob = 100-achieve_prob-collision_prob
+            total = np.zeros(episode+1)
+            for i in range(episode+1):
+                if recent_achieves[i] == 1:
+                    total[i] = 1
+                    break
+                elif recent_collisions[i] == 1:
+                    total[i] = 1
+                    break
+                else:
+                    total[i] = 0
+
+
+            none_prob = 100-sum(total)
+        total = np.zeros(episode + 1)
+        for i in range(episode+1):
+            if self.achieve_history[i] == 1:
+                total[i] = 1
+                break
+            elif self.collision_history[i] == 1:
+                total[i] = 1
+                break
+            else:
+                total[i] = 0
+
         self.achieve_chance_y.put(episode, achieve_prob)
         self.collision_chance_y.put(episode, collision_prob)
-        self.none_chance_y.put(episode, none_prob)
+        self.none_chance_y.put(episode, 100*sum(total)/(episode+1))
 
 
         self.total_reward_line.set_data(self.total_reward_x, self.total_reward_y)
@@ -229,16 +252,19 @@ class Model_Plotter():
         self.collision_line.set_data(self.collision_chance_x, self.collision_chance_y)
         self.none_line.set_data(self.none_chance_x, self.none_chance_y)
 
-        self.ax[0].set_xlim(0, episode+1)
-        self.ax[0].set_ylim(np.min(self.avg_y)-1, np.max(self.avg_y)+1)
-        self.ax[1].set_xlim(0, episode+1)
-        self.ax[1].set_ylim(np.min(self.dist_y), np.max(self.dist_y))
-        self.ax[2].set_xlim(np.min(self.total_reward_x), np.max(self.total_reward_x))
-        self.ax[2].set_ylim(np.min(self.total_reward_y)-1, np.max(self.total_reward_y)+1)
-        self.ax[3].set_xlim(0, episode+1)
-        self.ax[3].set_ylim(min(np.min(self.dist_weight_y), np.min(self.angle_weight_y), np.min(self.time_weight_y)), max(np.max(self.dist_weight_y), np.max(self.angle_weight_y), np.max(self.time_weight_y)))
-        self.ax[4].set_xlim(0, episode+1)
-        self.ax[4].set_ylim(0, 100)
+        try:
+            self.ax[0].set_xlim(0, episode+1)
+            self.ax[0].set_ylim(np.min(self.avg_y)-1, np.max(self.avg_y)+1)
+            self.ax[1].set_xlim(0, episode+1)
+            self.ax[1].set_ylim(np.min(self.dist_y), np.max(self.dist_y))
+            self.ax[2].set_xlim(np.min(self.total_reward_x), np.max(self.total_reward_x))
+            self.ax[2].set_ylim(np.min(self.total_reward_y)-1, np.max(self.total_reward_y)+1)
+            self.ax[3].set_xlim(0, episode+1)
+            self.ax[3].set_ylim(min(np.min(self.dist_weight_y), np.min(self.angle_weight_y), np.min(self.time_weight_y)), max(np.max(self.dist_weight_y), np.max(self.angle_weight_y), np.max(self.time_weight_y)))
+            self.ax[4].set_xlim(0, episode+1)
+            self.ax[4].set_ylim(0, 100)
+        except:
+            print("Error in setting limits")
 
 
         self.fig.canvas.draw()
@@ -290,3 +316,93 @@ class Model_Plotter():
             return sum(recent_achieves)/100
         else:
             return 0
+
+class Model_Visualizer:
+    def __init__(self, sizex, sizey):
+        plt.ion()
+        self.fig = plt.figure(figsize=(sizex, sizey))
+        self.ax = self.fig.subplots()
+        self.sizex = sizex
+        self.sizey = sizey
+        self.x = 0
+        self.y = 0
+        self.goalx = 0
+        self.goaly = 0
+        self.ax.set_xlim(-self.sizex/2, self.sizex/2)
+        self.ax.set_ylim(-self.sizey/2, self.sizey/2)
+    def start(self, x, y, goalx, goaly):
+        self.goalx = goalx
+        self.goaly = goaly
+        self.x = x
+        self.y = y
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+        plt.pause(0.001)
+    def update(self, x, y, q):
+        grad = list(Color("red").range_to(Color("green"), len(q)))
+        ordered_q = sorted(q)
+        for i in range(len(q)):
+            self.ax.scatter(x[i], y[i], color=grad[ordered_q.index(q[i])].hex)
+        self.ax.scatter(self.goalx, self.goaly, color='purple')
+        self.ax.scatter(self.x, self.y, color='blue')
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+        plt.pause(0.001)
+    def clear(self):
+        self.ax.clear()
+        self.ax.set_xlim(-self.sizex/2, self.sizex/2)
+        self.ax.set_ylim(-self.sizey/2, self.sizey/2)
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+        plt.pause(0.001)
+
+
+class RandomProcess(object):
+    def reset_states(self):
+        pass
+
+class AnnealedGaussianProcess(RandomProcess):
+    def __init__(self, mu, sigma, sigma_min, n_steps_annealing):
+        self.mu = mu
+        self.sigma = sigma
+        self.n_steps = 0
+
+        if sigma_min is not None:
+            self.m = -float(sigma - sigma_min) / float(n_steps_annealing)
+            self.c = sigma
+            self.sigma_min = sigma_min
+        else:
+            self.m = 0.
+            self.c = sigma
+            self.sigma_min = sigma
+
+    @property
+    def current_sigma(self):
+        sigma = max(self.sigma_min, self.m * float(self.n_steps) + self.c)
+        return sigma
+
+
+class OUNoise(object):
+    def __init__(self, action_space, mu=0.0, theta=0.15, max_sigma=0.3, min_sigma=0.3, decay_period=100000):
+        self.mu = mu
+        self.theta = theta
+        self.sigma = max_sigma
+        self.max_sigma = max_sigma
+        self.min_sigma = min_sigma
+        self.decay_period = decay_period
+        self.action_dim = action_space
+        self.reset()
+
+    def reset(self):
+        self.state = np.ones(self.action_dim) * self.mu
+
+    def evolve_state(self):
+        x = self.state
+        dx = self.theta * (self.mu - x) + self.sigma * np.random.randn(self.action_dim)
+        self.state = x + dx
+        return self.state
+
+    def get_action(self, action, t=0):
+        ou_state = self.evolve_state()
+        self.sigma = self.max_sigma - (self.max_sigma - self.min_sigma) * min(1.0, t / self.decay_period)
+        return action.cpu().detach().numpy() + ou_state

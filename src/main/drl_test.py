@@ -2,6 +2,7 @@ from drl_venv import DRL_VENV
 from generate_urdf_file_map import from_map, ASSET_PATH
 from drl_pathfinding import training_config, start_training_process
 from drl_network_simple import train, train_load
+from drl_networks_ddpg import TrainingExecutor
 from map import Map
 #from onshape_to_robot import onshape_to_robot
 import json
@@ -23,12 +24,16 @@ DRL_VENV = DRL_VENV(map=mapobj, assets_path=ASSET_PATH)
 
 #train(DRL_VENV)
 
+te = TrainingExecutor()
+
 while True:
     inp = input("T - Train\n"
           "L - Load")
     inp = inp.upper()
     if inp == "T":
-        train(DRL_VENV)
+        #train(DRL_VENV)
+        te.train(DRL_VENV)
     elif inp == "L":
-        train_load(DRL_VENV)
+        e = te.load()
+        te.train(DRL_VENV, start_episode=e)
     time.sleep(1)

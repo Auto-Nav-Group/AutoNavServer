@@ -17,11 +17,17 @@ import random
 FILE_LOCATION = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\models"
 FILE_NAME = "SampleModel"
 
-STATE_DIM = 5
+ONE_SITUATION = True
+
+STATE_DIM = 8
 ACTION_DIM = 1
 
-SIMPLE_LAYER_1 = 256
-SIMPLE_LAYER_2 = 256
+SIMPLE_LAYER_1 = 512
+SIMPLE_LAYER_2 = 512
+SIMPLE_LAYER_3 = 512
+SIMPLE_LAYER_4 = 256
+SIMPLE_LAYER_5 = 256
+SIMPLE_LAYER_6 = 256
 
 COLLISION_WEIGHT = -150
 TIME_WEIGHT = 0#-6
@@ -34,17 +40,18 @@ ANGLE_WEIGHT = 0#-2
 
 EPISODES = 40000
 TIMESTEP_CAP = 100
-SAVE_FREQ = 75 #Save model every x episodes
-IDEAL_PROBABILITY = 0.95
-IDEAL_ANGLE_SWITCH = np.pi/8
+SAVE_FREQ = 100 #Save model every x episodes
+IDEAL_PROBABILITY = 0.9
+IDEAL_ANGLE_SWITCH = np.pi/64
+START_ANGLE = np.pi#np.pi/32
 
-BATCH_SIZE = SIMPLE_LAYER_1 #Batch size for training
-GAMMA = 0.99 #Discount factor
+BATCH_SIZE = 256 #Batch size for training
+GAMMA = 0.999 #Discount factor
 EPS_START = 0.9
 EPS_END = 0.05 #Final value of epsilon
 EPS_DECAY = 1000 #Rate of exponential decay of epsilon. Higher is lower.
-Tau = 0.001 #Update rate of target network
-LR = 1e-4 #Learning rate of optimizer
+Tau = 0.0005 #Update rate of target network
+LR = 1e-5 #Learning rate of optimizer
 
 MEMORY = ReplayMemory(100000)
 
@@ -78,12 +85,20 @@ class SimpleActor(nn.Module):
         super(SimpleActor, self).__init__()
         self.layer_1 = nn.Linear(state_dim, SIMPLE_LAYER_1)
         self.layer_2 = nn.Linear(SIMPLE_LAYER_1, SIMPLE_LAYER_2)
-        self.layer_3 = nn.Linear(SIMPLE_LAYER_2, action_dim)
+        self.layer_3 = nn.Linear(SIMPLE_LAYER_2, SIMPLE_LAYER_3)
+        self.layer_4 = nn.Linear(SIMPLE_LAYER_3, SIMPLE_LAYER_4)
+        self.layer_5 = nn.Linear(SIMPLE_LAYER_4, SIMPLE_LAYER_5)
+        self.layer_6 = nn.Linear(SIMPLE_LAYER_5, SIMPLE_LAYER_6)
+        self.layer_7 = nn.Linear(SIMPLE_LAYER_6, action_dim)
 
     def forward(self, state):
         a = F.relu(self.layer_1(state))
         a = F.relu(self.layer_2(a))
-        a = self.layer_3(a)
+        a = F.relu(self.layer_3(a))
+        a = F.relu(self.layer_4(a))
+        a = F.relu(self.layer_5(a))
+        a = F.relu(self.layer_6(a))
+        a = self.layer_7(a)
         return a
 
 def compute_returns(rewards):
@@ -97,17 +112,19 @@ def compute_returns(rewards):
     return returns
 
 def train(env, agent=None, plotter=None, prev_episode=0):
-    def get_action(c_episode, c_state):
+    steps_done = 0
+    def get_action(c_state):
+        nonlocal steps_done
         sample = random.random()
-        eps_threshold = EPS_END + (EPS_START - EPS_END) * np.exp(-1. * c_episode / EPS_DECAY)
-        c_episode += 1
+        eps_threshold = EPS_END + (EPS_START - EPS_END) * np.exp(-1. * steps_done / EPS_DECAY)
+        steps_done += 1
         if sample > eps_threshold:
             with torch.no_grad():
                 q = agent(c_state)
                 qmax = q.max(0)[0]
                 return qmax.view(1)
         else:
-            return torch.tensor([random.uniform(-1, 1)], device=TRAINING_DEVICE,
+            return torch.tensor([random.uniform(-np.pi, np.pi)], device=TRAINING_DEVICE,
                                 dtype=torch.float32)
 
     '''def plot_results():
@@ -230,7 +247,7 @@ def train(env, agent=None, plotter=None, prev_episode=0):
     plot_results()'''
 
 
-    ideal_angle = 0
+    ideal_angle = START_ANGLE
 
     initial_state = env.reset(ideal_angle)
 
@@ -243,7 +260,10 @@ def train(env, agent=None, plotter=None, prev_episode=0):
             ideal_angle_episode = 0
         else:
             ideal_angle_episode = episode
-        state = env.reset(ideal_angle)
+        if ONE_SITUATION:
+            state = env.reload(initial_state, ideal_angle)
+        else:
+            state = env.reset(ideal_angle)
         initdist = state[0]
         initangle = state[1]
         done = False
@@ -261,7 +281,7 @@ def train(env, agent=None, plotter=None, prev_episode=0):
 
         while (done or timestep > TIMESTEP_CAP) is False:
             state_tensor = torch.tensor(state, dtype=torch.float32).to(TRAINING_DEVICE)
-            action = get_action(episode, state_tensor)
+            action = get_action(state_tensor)
             next_state, collision, done, achieved_goal, dist_traveled = env.step(action)
             next_state = torch.tensor(next_state, dtype=torch.float32).to(TRAINING_DEVICE)
             ovr_dist += dist_traveled
@@ -277,7 +297,7 @@ def train(env, agent=None, plotter=None, prev_episode=0):
             if (next_state is not None):
                 reward, tw, dw, aw  = get_reward(done, collision, timestep, achieved_goal, (initdist-next_state[0])/initdist, initdist, initangle, ovr_dist, next_state[1])
             else:
-                reward, tw, dw, aw = get_reward(done, collision, timestep, achieved_goal, initangle, 0, 0, 0, 0)
+                reward, tw, dw, aw = get_reward(done, collision, timestep, achieved_goal, initangle, initdist, initangle, 0, 0)
             episode_reward += reward
             episode_tw += tw
             episode_dw += dw
@@ -338,6 +358,8 @@ def train(env, agent=None, plotter=None, prev_episode=0):
                 prev = episode_reward
                 total_rewards.put(episode, episode_reward)
         plot_results()'''
+
+
 
 
 def train_load(env):

@@ -1,3 +1,5 @@
+import torch
+
 from drl_utils import Quaternion, ReplayMemory, ObjectState
 import pybullet as p
 import pybullet_data
@@ -10,10 +12,14 @@ import math
 TIME_DELTA = 0.1 # Time setup in simulation
 GUI = False # GUI flag
 GOAL_REACHED_DIST = 1 # Distance to goal to be considered reached
-MIN_START_DIST = 6 # Minimum distance from start to goal
+MIN_START_DIST = 10 # Minimum distance from start to goal
 MAX_SPEED = 5 # Maximum speed of the robot
 MAX_ANGULAR_SPEED = math.pi # Maximum angular speed of the robot
 TIP_ANGLE = 30
+
+LIDAR_RANGE = 10
+LIDAR_ANGLE = np.pi
+LIDAR_POINTS = 100
 
 GRAVITY = 0
 
@@ -23,11 +29,14 @@ class DRL_VENV:
     def __init__(self, map, assets_path):
         self.basis = map
         self.robot = None
+        self.goal = None
+        self.ray_debug_id = []
         self.goal_x = 1
         self.goal_y = 0
         self.x = 0
         self.y = 0
         self.obstacles = []
+        self.lidar_dists = []
         self.pybullet_instance = p
         if GUI:
             self.client = p.connect(p.GUI)
@@ -75,9 +84,9 @@ class DRL_VENV:
                     break
         self.goal_x = self.goal_x-self.basis.size.width/2
         self.goal_y = self.goal_y-self.basis.size.height/2
-        p.loadURDF("goal.urdf", [self.goal_x, self.goal_y, 0.1])
+        self.goal = p.loadURDF("goal.urdf", [self.goal_x, self.goal_y, 0.1])
 
-    def reset_situation(self, ideal_angle):
+    def reset_situation(self, ideal_angle, new_goal=True):
         x = 0
         y = 0
         position_fine = False
@@ -96,7 +105,8 @@ class DRL_VENV:
         y=y-self.basis.size.height/2
         self.x = x
         self.y = y
-        self.new_goal()
+        if (new_goal):
+            self.new_goal()
         angle_to_goal = math.atan2(self.goal_y-self.y, self.goal_x-self.x)
         newangle = np.random.uniform(angle_to_goal-ideal_angle, angle_to_goal+ideal_angle)
         return newangle
@@ -132,7 +142,8 @@ class DRL_VENV:
         quaternion = q
         roll, pitch, yaw = quaternion.to_euler()
 
-        action = action.cpu().detach().numpy()
+        if type(action) == torch.Tensor:
+            action = action.cpu().detach().numpy()
 
         action_x = 1*MAX_SPEED*math.cos(yaw)
         action_y = 1*MAX_SPEED*math.sin(yaw)
@@ -184,13 +195,13 @@ class DRL_VENV:
         if distance < GOAL_REACHED_DIST:
             achieved_goal = True
             done = True
-        robot_state = [distance, theta, self.x, self.y, action[0]]
+        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, action[0], self.run_lidar()]
         #reward = self.get_reward(target, collision, action)
         #return robot_state, reward, done, target
         return robot_state, collision, done, achieved_goal, dist_traveled
 
 
-    def reset(self, ideal_angle): # Create a new environment
+    def reset(self, ideal_angle=np.pi): # Create a new environment
         p.resetSimulation()
         p.setGravity(0, 0, -GRAVITY)
         p.setTimeStep(0.01)
@@ -246,8 +257,62 @@ class DRL_VENV:
 
         distance = math.sqrt((self.goal_x-self.x)**2+(self.goal_y-self.y)**2)
 
-        robot_state = [distance, theta, self.x, self.y, 0.0]
+        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, 0.0, self.run_lidar()]
+        return robot_state, distance
+
+    def reload(self, state, ideal_angle):
+        p.resetSimulation()
+        p.setGravity(0, 0, -GRAVITY)
+        p.setTimeStep(0.01)
+        p.setTimeStep(TIME_DELTA)
+
+        for i in range(4):
+            self.environment_ids.append(p.loadURDF("bound"+str(i+1)+".urdf"))
+        for i in range(len(self.basis.obstacles)):
+            self.obstacles.append(p.loadURDF("obs_"+str(i+1)+".urdf"))
+            self.environment_ids.append(self.obstacles[i])
+        for i in range(len(self.environment_ids)):
+            self.environment_dim += p.getNumJoints(self.environment_ids[i])
+
+        angle = self.reset_situation(ideal_angle, new_goal=False)
+        quaternion = Quaternion.from_euler(0, 0, angle)
+        self.x = state[2]
+        self.y = state[3]
+        self.initial_state = ObjectState()
+        obj_state = self.initial_state
+        obj_state.position = [self.x, self.y, 0.25]
+        obj_state.orientation = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
+
+        self.robotid = p.loadURDF("robot.urdf", obj_state.position, obj_state.orientation)
+
+        self.goal_x = state[4]
+        self.goal_y = state[5]
+
+        self.goal = p.loadURDF("goal.urdf", [self.goal_x, self.goal_y, 0.25])
+
+        skew_x = self.goal_x - self.x
+        skew_y = self.goal_y - self.y
+
+        dot = skew_x * 1 + skew_y * 0
+        mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
+        mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
+        beta = math.acos(dot / (mag1 * mag2))
+
+        if skew_y < 0:
+            if skew_x < 0:
+                beta = -beta
+            else:
+                beta = 0 - beta
+        theta = beta - angle
+
+        distance = math.sqrt((self.goal_x - self.x) ** 2 + (self.goal_y - self.y) ** 2)
+
+        robot_state = [distance, theta, self.x, self.y, self.goal_x, self.goal_y, 0.0, self.run_lidar()]
         return robot_state
+
+
+
+
     @staticmethod
     def get_reward(target, collision, action):
         if target:
@@ -268,3 +333,39 @@ class DRL_VENV:
             return True
         else:
             return False
+
+    def run_lidar(self):
+        for did in self.ray_debug_id:
+            p.removeUserDebugItem(did)
+        self.ray_debug_id.clear()
+        start_positions = []
+        end_positions = []
+        for i in range(LIDAR_POINTS):
+            start_positions.append([self.x, self.y, 0.5])
+            end_positions.append([self.x + LIDAR_RANGE * math.cos(i * 2 * math.pi / LIDAR_POINTS - LIDAR_ANGLE/2),
+                                  self.y + LIDAR_RANGE * math.sin(i * 2 * math.pi / LIDAR_POINTS - LIDAR_ANGLE/2), 0.5])
+        res = p.rayTestBatch(start_positions, end_positions)
+
+        distances = []
+        non_goal = []
+
+        for i in range(len(res)):
+            result = res[i]
+            if result[0] > -1:
+                hit_position = result[3]  # Get the collision point
+                start_point = start_positions[i]
+                distance_to_collision = math.sqrt(math.pow(hit_position[0] - start_point[0], 2) + math.pow(hit_position[1] - start_point[1], 2))
+                distances.append(distance_to_collision)
+                if result[0] != self.goal:
+                    non_goal.append(distance_to_collision)
+                #debug_ray = p.addUserDebugLine(start_point, hit_position, [1, 0, 0], 1, 0.01)
+                #self.ray_debug_id.append(debug_ray)
+            #else:
+                #debug_ray = p.addUserDebugLine(start_positions[i], end_positions[i], [0, 1, 0], 1, 0.01)
+                #self.ray_debug_id.append(debug_ray)
+
+        self.lidar_dists = distances
+
+        if len(non_goal) == 0:
+            return 0
+        return min(non_goal)
