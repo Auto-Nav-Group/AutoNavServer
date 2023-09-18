@@ -31,6 +31,10 @@ CHALLENGE_WEIGHT = 10
 CHALLENGE_EXP_BASE = 1.25
 ANGLE_WEIGHT = -6#-2
 
+IDEAL_PROBABILITY = 0.9
+IDEAL_ANGLE_SWITCH = np.pi/64
+START_ANGLE = np.pi/32#np.pi/32
+
 STATE_DIM = 7
 ACTION_DIM = 1
 
@@ -42,7 +46,7 @@ ACTOR_LR = 1e-4
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 1e-5
+CRITIC_LR = 1e-6
 
 START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.99
@@ -144,6 +148,7 @@ class DDPG(object):
         self.critic_optim.zero_grad()
         critic_loss.backward()
         self.critic_optim.step()
+        clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
 
         self.soft_update(self.actor_target, self.actor, TAU)
         self.soft_update(self.critic_target, self.critic, TAU)
@@ -182,8 +187,17 @@ class TrainingExecutor:
         if self.plotter is None:
             self.plotter = Model_Plotter(num_episodes)
         visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
+        initstate, dist = env.reset()
+        ideal_angle = START_ANGLE
+        ideal_angle_episode = start_episode
         for episode in range(start_episode, num_episodes):
-            state, dist = env.reset()
+            current_percent = self.plotter.get_ideal_probability(ideal_angle_episode, episode)
+            if current_percent >= IDEAL_PROBABILITY and ideal_angle <= np.pi:
+                ideal_angle += IDEAL_ANGLE_SWITCH
+                ideal_angle_episode = 0
+            else:
+                ideal_angle_episode = episode
+            state, dist = env.reset(ideal_angle)
             visualizer.start(state[1], state[2], state[3], state[4])
             initdist = dist
             initangle = state[1]
@@ -239,7 +253,7 @@ class TrainingExecutor:
                 self.save(episode)
 
             rewards.append(episode_reward)
-            print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
+            print("Episode: " + str(episode) + " Reward: " + str(episode_reward) + "\nQval Max: " + str(np.max(action_q)) + " Qval Min: " + str(np.min(action_q)) + " Qval Mean: " + str(np.mean(action_q)))
             self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide)
 
 

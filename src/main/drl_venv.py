@@ -260,7 +260,7 @@ class DRL_VENV:
         robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, 0.0, self.run_lidar()]
         return robot_state, distance
 
-    def reload(self, state, ideal_angle):
+    def reload(self, state, ideal_angle=np.pi):
         p.resetSimulation()
         p.setGravity(0, 0, -GRAVITY)
         p.setTimeStep(0.01)
@@ -276,8 +276,8 @@ class DRL_VENV:
 
         angle = self.reset_situation(ideal_angle, new_goal=False)
         quaternion = Quaternion.from_euler(0, 0, angle)
-        self.x = state[2]
-        self.y = state[3]
+        self.x = state[1]
+        self.y = state[2]
         self.initial_state = ObjectState()
         obj_state = self.initial_state
         obj_state.position = [self.x, self.y, 0.25]
@@ -285,8 +285,8 @@ class DRL_VENV:
 
         self.robotid = p.loadURDF("robot.urdf", obj_state.position, obj_state.orientation)
 
-        self.goal_x = state[4]
-        self.goal_y = state[5]
+        self.goal_x = state[3]
+        self.goal_y = state[4]
 
         self.goal = p.loadURDF("goal.urdf", [self.goal_x, self.goal_y, 0.25])
 
@@ -307,8 +307,8 @@ class DRL_VENV:
 
         distance = math.sqrt((self.goal_x - self.x) ** 2 + (self.goal_y - self.y) ** 2)
 
-        robot_state = [distance, theta, self.x, self.y, self.goal_x, self.goal_y, 0.0, self.run_lidar()]
-        return robot_state
+        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, 0.0, self.run_lidar()]
+        return robot_state, distance
 
 
 
