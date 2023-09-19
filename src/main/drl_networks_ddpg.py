@@ -25,14 +25,15 @@ BATCH_SIZE = 128
 COLLISION_WEIGHT = -100
 TIME_WEIGHT = 0#-6
 FINISH_WEIGHT = 100
-DIST_WEIGHT = 0#2
+DIST_WEIGHT = 2
 PASS_DIST_WEIGHT = -6
 CHALLENGE_WEIGHT = 10
 CHALLENGE_EXP_BASE = 1.25
 ANGLE_WEIGHT = -6#-2
+SPEED_WEIGHT = 3
 
-STATE_DIM = 7
-ACTION_DIM = 1
+STATE_DIM = 9
+ACTION_DIM = 2
 
 ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 256
@@ -121,10 +122,10 @@ class DDPG(object):
         if len(self.mem) < batch_size:
             return
         batch = Transition(*zip(*self.mem.sample(batch_size)))
-        states = torch.stack(batch.state).to(self.device)
-        actions = torch.stack(batch.action).to(self.device)
-        rewards = torch.stack(batch.reward).to(self.device)
-        next_states = torch.stack(batch.next_state).to(self.device)
+        states = torch.stack(batch.state).to(self.device).float()
+        actions = torch.stack(batch.action).to(self.device).float()
+        rewards = torch.stack(batch.reward).to(self.device).float()
+        next_states = torch.stack(batch.next_state).to(self.device).float()
 
         #Critic loss
         QVal = self.critic.forward((states, actions))
@@ -132,6 +133,7 @@ class DDPG(object):
         next_Q = self.critic_target.forward((next_states, next_actions.detach()))
         QPrime = rewards + GAMMA * next_Q
         critic_loss = self.criterion(QVal, QPrime)
+        critic_loss = critic_loss.float()
 
         #Actor loss
         actor_loss = -self.critic.forward((states, self.actor.forward(states))).mean()
@@ -153,12 +155,13 @@ class TrainingExecutor:
         self.ddpg = DDPG(STATE_DIM, ACTION_DIM, DEVICE)
         self.plotter = None
 
-    def get_reward(self, done, collision, timestep, achieved_goal, delta_dist, initdistance, initangle, ovr_dist, angle):
+    def get_reward(self, done, collision, timestep, achieved_goal, delta_dist, initdistance, initangle, ovr_dist, angle, vel):
         dist_weight = delta_dist * DIST_WEIGHT
         angle_weight = (abs(angle) / np.pi) * ANGLE_WEIGHT
         # time_weight = TIME_WEIGHT*(initdistance/MAX_SPEED-timestep/TIME_DELTA)
         time_weight = 0
-        total_weight = dist_weight + angle_weight + time_weight
+        speed_weight = abs(vel) * SPEED_WEIGHT
+        total_weight = dist_weight + angle_weight + time_weight + speed_weight
         if (ovr_dist > initdistance):
             total_weight += PASS_DIST_WEIGHT
         if initdistance / MAX_SPEED < timestep * TIME_DELTA:
@@ -208,9 +211,9 @@ class TrainingExecutor:
                 action = noise.get_action(action, step)
                 actions.append(torch.tensor(action))
                 states.append(state)
-                next_state, collision, done, achieved_goal, dist_traveled = env.step(action)
+                next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
                 ovr_dist += dist_traveled
-                reward, tw, dw, aw = self.get_reward(done, collision, step, achieved_goal, dist_traveled, initdist, initangle, ovr_dist, next_state[0])
+                reward, tw, dw, aw = self.get_reward(done, collision, step, achieved_goal, dist_traveled, initdist, initangle, ovr_dist, next_state[0], action[1])
                 self.ddpg.mem.push(state, torch.tensor(action).to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE))
                 episode_reward += reward
                 episode_tw += tw

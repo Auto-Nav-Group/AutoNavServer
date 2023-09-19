@@ -111,7 +111,7 @@ class DRL_VENV:
         newangle = np.random.uniform(angle_to_goal-ideal_angle, angle_to_goal+ideal_angle)
         return newangle
 
-    def step(self, action):
+    def step(self, action, timestep):
         target = False
         done = False
         achieved_goal = False
@@ -145,8 +145,8 @@ class DRL_VENV:
         if type(action) == torch.Tensor:
             action = action.cpu().detach().numpy()
 
-        action_x = 1*MAX_SPEED*math.cos(yaw)
-        action_y = 1*MAX_SPEED*math.sin(yaw)
+        action_x = action[1]*MAX_SPEED*math.cos(yaw)
+        action_y = action[1]*MAX_SPEED*math.sin(yaw)
 
         rotation_yaw = action[0]*float(MAX_ANGULAR_SPEED)
 
@@ -195,7 +195,7 @@ class DRL_VENV:
         if distance < GOAL_REACHED_DIST:
             achieved_goal = True
             done = True
-        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, action[0], self.run_lidar()]
+        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, action[0], action[1], self.run_lidar(), timestep*TIME_DELTA]
         #reward = self.get_reward(target, collision, action)
         #return robot_state, reward, done, target
         return robot_state, collision, done, achieved_goal, dist_traveled
@@ -257,7 +257,7 @@ class DRL_VENV:
 
         distance = math.sqrt((self.goal_x-self.x)**2+(self.goal_y-self.y)**2)
 
-        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, 0.0, self.run_lidar()]
+        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, 0.0, 0.0, self.run_lidar(), 0]
         return robot_state, distance
 
     def reload(self, state, ideal_angle):
