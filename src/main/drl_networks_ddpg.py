@@ -16,7 +16,7 @@ import random
 
 FILE_LOCATION = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\models"
 FILE_NAME = "SampleModel"
-SAVE_FREQ = 100
+SAVE_FREQ = 250
 
 EPISODES = 16000
 MAX_TIMESTEP = 1000
@@ -38,16 +38,16 @@ ACTION_DIM = 2
 ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 256
 
-ACTOR_LR = 1e-4
+ACTOR_LR = 1e-5
 
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 1e-5
+CRITIC_LR = 1e-6
 
 START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.99
-TAU = 1e-2
+TAU = 1e-3
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -120,7 +120,7 @@ class DDPG(object):
 
     def update_parameters(self, batch_size):
         if len(self.mem) < batch_size:
-            return
+            return -1, -1
         batch = Transition(*zip(*self.mem.sample(batch_size)))
         states = torch.stack(batch.state).to(self.device).float()
         actions = torch.stack(batch.action).to(self.device).float()
@@ -136,8 +136,8 @@ class DDPG(object):
         critic_loss = critic_loss.float()
 
         #Actor loss
-        actor_loss = -self.critic.forward((states, self.actor.forward(states))).mean()
-
+        actor_losses = self.critic.forward((states, self.actor.forward(states)))
+        actor_loss = -actor_losses.mean()
         #Update networks
         self.actor_optim.zero_grad()
         actor_loss.backward()
@@ -149,6 +149,11 @@ class DDPG(object):
 
         self.soft_update(self.actor_target, self.actor, TAU)
         self.soft_update(self.critic_target, self.critic, TAU)
+
+        clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
+        clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
+
+        return critic_loss.item(), actor_loss.item()
 
 class TrainingExecutor:
     def __init__(self):
@@ -200,6 +205,8 @@ class TrainingExecutor:
             episode_collide = 0
             episode_x = []
             episode_y = []
+            episode_closs = []
+            episode_aloss = []
             action_q = []
             ovr_dist = 0
 
@@ -223,7 +230,9 @@ class TrainingExecutor:
                 episode_y.append(next_state[2])
                 state = torch.FloatTensor(next_state).to(DEVICE)
 
-                self.ddpg.update_parameters(batch_size)
+                c_loss, a_loss = self.ddpg.update_parameters(batch_size)
+                episode_closs.append(c_loss)
+                episode_aloss.append(a_loss)
 
                 if collision is True:
                     episode_collide = 1
@@ -243,7 +252,7 @@ class TrainingExecutor:
 
             rewards.append(episode_reward)
             print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
-            self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide)
+            self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide, sum(episode_closs)/len(episode_closs), sum(episode_aloss)/len(episode_aloss))
 
 
 

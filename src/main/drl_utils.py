@@ -128,8 +128,12 @@ class Model_Plotter():
         self.collision_chance_y = np.zeros(episodes)
         self.none_chance_x = np.arange(episodes)
         self.none_chance_y = np.zeros(episodes)
+        self.c_loss_x = np.arange(episodes)
+        self.c_loss_y = np.zeros(episodes)
+        self.a_loss_x = np.arange(episodes)
+        self.a_loss_y = np.zeros(episodes)
 
-        self.fig, self.ax = plt.subplots(5, figsize=(10,6))
+        self.fig, self.ax = plt.subplots(7, figsize=(10,6))
         self.fig.suptitle("Training Metrics")
         self.avg_line, = self.ax[0].plot(self.avg_x, self.avg_y, label="Average Reward", color="blue")
         self.dist_line, = self.ax[1].plot(self.dist_x, self.dist_y, label="Distance Reward", color="red")
@@ -140,6 +144,8 @@ class Model_Plotter():
         self.achieve_line, = self.ax[4].plot(self.achieve_chance_x, self.achieve_chance_y, label="Achieve Chance", color="green")
         self.collision_line, = self.ax[4].plot(self.collision_chance_x, self.collision_chance_y, label="Collision Chance", color="red")
         self.none_line, = self.ax[4].plot(self.none_chance_x, self.none_chance_y, label="None Chance", color="blue")
+        self.a_loss_line = self.ax[5].plot(self.a_loss_x, self.a_loss_y, label="Actor Loss", color="blue")[0]
+        self.c_loss_line = self.ax[6].plot(self.c_loss_x, self.c_loss_y, label="Critic Loss", color="red")[0]
         self.ax[3].legend(handles=[self.dist_weight_line, self.angle_weight_line, self.time_weight_line])
         self.ax[4].legend(handles=[self.achieve_line, self.collision_line, self.none_line])
 
@@ -155,6 +161,8 @@ class Model_Plotter():
         time_weight_y,
         achieve_chance_y,
         collision_chance_y,
+        c_loss_y,
+        a_loss_y
     ):
         if self.total_reward_y[99]==self.prev_total_reward or episode > 99:
             self.total_reward_y = np.delete(self.total_reward_y, 0)
@@ -241,6 +249,9 @@ class Model_Plotter():
         self.collision_chance_y.put(episode, collision_prob)
         self.none_chance_y.put(episode, 100*sum(total)/(episode+1))
 
+        self.c_loss_y.put(episode, c_loss_y)
+        self.a_loss_y.put(episode, a_loss_y)
+
 
         self.total_reward_line.set_data(self.total_reward_x, self.total_reward_y)
         self.avg_line.set_data(self.avg_x, self.avg_y)
@@ -251,6 +262,8 @@ class Model_Plotter():
         self.achieve_line.set_data(self.achieve_chance_x, self.achieve_chance_y)
         self.collision_line.set_data(self.collision_chance_x, self.collision_chance_y)
         self.none_line.set_data(self.none_chance_x, self.none_chance_y)
+        self.c_loss_line.set_data(self.c_loss_x, self.c_loss_y)
+        self.a_loss_line.set_data(self.a_loss_x, self.a_loss_y)
 
         try:
             self.ax[0].set_xlim(0, episode+1)
@@ -263,6 +276,14 @@ class Model_Plotter():
             self.ax[3].set_ylim(min(np.min(self.dist_weight_y), np.min(self.angle_weight_y), np.min(self.time_weight_y)), max(np.max(self.dist_weight_y), np.max(self.angle_weight_y), np.max(self.time_weight_y)))
             self.ax[4].set_xlim(0, episode+1)
             self.ax[4].set_ylim(0, 100)
+            self.ax[5].set_xlim(0, episode+1)
+            closs_max = np.max(self.c_loss_y)
+            aloss_max = np.max(self.a_loss_y)
+            closs_min = np.min(self.c_loss_y)
+            aloss_min = np.min(self.a_loss_y)
+            self.ax[6].set_ylim(closs_min, closs_max)
+            self.ax[6].set_xlim(0, episode+1)
+            self.ax[5].set_ylim(aloss_min, aloss_max)
         except:
             print("Error in setting limits")
 
