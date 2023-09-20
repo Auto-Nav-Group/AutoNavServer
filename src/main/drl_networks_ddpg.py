@@ -118,7 +118,7 @@ class DDPG(object):
         action = self.actor.forward(state)
         return action
     
-    def normalize_state(state):
+    def normalize_state(self, state):
         return NormalizeState.NormalizeState(self.mem, state)
 
     def update_parameters(self, batch_size):
@@ -195,7 +195,8 @@ class TrainingExecutor:
         visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
         for episode in range(start_episode, num_episodes):
             state, dist = env.reset()
-            state = self.ddpg.normalize_state(state)
+            if episode != start_episode:
+                state = self.ddpg.normalize_state(state)
             visualizer.start(state[1], state[2], state[3], state[4])
             initdist = dist
             initangle = state[1]
@@ -232,7 +233,7 @@ class TrainingExecutor:
                 episode_aw += aw
                 episode_x.append(next_state[1])
                 episode_y.append(next_state[2])
-                state = NormalizeState(next_state)
+                state = self.ddpg.normalize_state(next_state)
                 state = torch.FloatTensor(state).to(DEVICE)
 
                 c_loss, a_loss = self.ddpg.update_parameters(batch_size)

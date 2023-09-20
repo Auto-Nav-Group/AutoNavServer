@@ -432,9 +432,15 @@ class NormalizeState:
     @staticmethod
     def NormalizeState(mem, state):
         nstate = []
-        mem_t = Transition(*zip(*mem))
+        mem_t = Transition(*zip(*mem.memory))
         for i in range(len(state)-2):
-            nstate.append(state[i]-np.mean(mem_t.state[i])/(np.std(mem_t.state[i])+1e-8))
+            state_item_array = []
+            for j in range(len(mem_t.state)):
+                item = mem_t.state[j][i]
+                if type(item) is torch.Tensor:
+                    item = item.cpu().detach().numpy()
+                state_item_array.append(item)
+            nstate.append(state[i]-np.mean(state_item_array)/(np.std(state_item_array)+1e-8))
         nstate.append(state[len(state)-2])
         nstate.append(state[len(state)-1])
         return nstate
