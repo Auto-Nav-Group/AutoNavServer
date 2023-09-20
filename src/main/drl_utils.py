@@ -427,20 +427,27 @@ class OUNoise(object):
         ou_state = self.evolve_state()
         self.sigma = self.max_sigma - (self.max_sigma - self.min_sigma) * min(1.0, t / self.decay_period)
         return action.cpu().detach().numpy() + ou_state
-    
+
+
 class NormalizeState:
     @staticmethod
     def NormalizeState(mem, state):
-        nstate = []
         mem_t = Transition(*zip(*mem.memory))
-        for i in range(len(state)-2):
-            state_item_array = []
-            for j in range(len(mem_t.state)):
-                item = mem_t.state[j][i]
-                if type(item) is torch.Tensor:
-                    item = item.cpu().detach().numpy()
-                state_item_array.append(item)
-            nstate.append(state[i]-np.mean(state_item_array)/(np.std(state_item_array)+1e-8))
-        nstate.append(state[len(state)-2])
-        nstate.append(state[len(state)-1])
+        nstate = []
+        states = torch.stack(mem_t.state).cpu()
+        column_means = states.mean(dim=0)
+        column_stddevs = states.std(dim=0) + 1e-8 * torch.abs(column_means)
+        if torch.isnan(column_stddevs).any():
+            return state
+        nstate.append((state[0] - column_means[0]) / column_stddevs[0])
+        location_states_means = [column_means[1], column_means[2], column_means[3], column_means[4]]
+        location_states_std = [column_stddevs[1], column_stddevs[2], column_stddevs[3], column_stddevs[4]]
+        nstate.append((state[1] - location_states_means[0]) / (location_states_std[0]))
+        nstate.append((state[2] - location_states_means[1]) / (location_states_std[1]))
+        nstate.append((state[3] - location_states_means[2]) / (location_states_std[2]))
+        nstate.append((state[4] - location_states_means[3]) / (location_states_std[3]))
+        nstate.append((state[5] - column_means[5]) / column_stddevs[5])
+        nstate.append((state[6] - column_means[6]) / column_stddevs[6])
+        nstate.append(state[7])
+        nstate.append(state[8])
         return nstate

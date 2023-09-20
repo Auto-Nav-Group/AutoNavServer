@@ -7,6 +7,7 @@ import json
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from torch.nn.utils import clip_grad_norm_
+from torch.nn import init
 from torch.optim.lr_scheduler import StepLR
 from drl_utils import ReplayMemory, Transition, NumpyArrayEncoder, Model_Plotter, OUNoise, Model_Visualizer, NormalizeState
 from drl_venv import MAX_SPEED, TIME_DELTA
@@ -58,6 +59,9 @@ class Actor(nn.Module):
         self.l2 = nn.Linear(ACTOR_LAYER_1, ACTOR_LAYER_2)
         self.l3 = nn.Linear(ACTOR_LAYER_2, action_dim)
         self.tanh = nn.Tanh()
+        init.xavier_uniform_(self.l1.weight)
+        init.xavier_uniform_(self.l2.weight)
+        init.xavier_uniform_(self.l3.weight)
 
     def forward(self, state):
         state = state.to(torch.float32)
@@ -74,6 +78,9 @@ class Critic(nn.Module):
         self.l2 = nn.Linear(CRITIC_LAYER_1, CRITIC_LAYER_2)
         self.l3 = nn.Linear(CRITIC_LAYER_2, 1)
         self.relu = nn.ReLU()
+        init.xavier_uniform_(self.l1.weight)
+        init.xavier_uniform_(self.l2.weight)
+        init.xavier_uniform_(self.l3.weight)
 
     def forward(self, xs):
         x, a = xs

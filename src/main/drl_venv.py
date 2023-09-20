@@ -195,7 +195,7 @@ class DRL_VENV:
         if distance < GOAL_REACHED_DIST:
             achieved_goal = True
             done = True
-        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, action[0], action[1], self.run_lidar(), timestep*TIME_DELTA]
+        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, self.run_lidar(), timestep*TIME_DELTA, action[0], action[1]]
         #reward = self.get_reward(target, collision, action)
         #return robot_state, reward, done, target
         return robot_state, collision, done, achieved_goal, dist_traveled
@@ -257,7 +257,7 @@ class DRL_VENV:
 
         distance = math.sqrt((self.goal_x-self.x)**2+(self.goal_y-self.y)**2)
 
-        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, 0.0, 0.0, self.run_lidar(), 0]
+        robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, self.run_lidar(), 0, 0, 0]
         return robot_state, distance
 
     def reload(self, state, ideal_angle):
