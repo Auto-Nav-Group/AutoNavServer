@@ -427,3 +427,14 @@ class OUNoise(object):
         ou_state = self.evolve_state()
         self.sigma = self.max_sigma - (self.max_sigma - self.min_sigma) * min(1.0, t / self.decay_period)
         return action.cpu().detach().numpy() + ou_state
+    
+class NormalizeState:
+    @staticmethod
+    def NormalizeState(mem, state):
+        nstate = []
+        mem_t = Transition(*zip(*mem))
+        for i in range(len(state)-2):
+            nstate.append(state[i]-np.mean(mem_t.state[i])/(np.std(mem_t.state[i])+1e-8))
+        nstate.append(state[len(state)-2])
+        nstate.append(state[len(state)-1])
+        return nstate
