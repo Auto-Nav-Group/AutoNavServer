@@ -21,7 +21,7 @@ SAVE_FREQ = 250
 
 EPISODES = 16000
 MAX_TIMESTEP = 1000
-BATCH_SIZE = 128
+BATCH_SIZE = 512
 
 COLLISION_WEIGHT = -100
 TIME_WEIGHT = 0#-6
@@ -39,12 +39,12 @@ ACTION_DIM = 2
 ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 256
 
-ACTOR_LR = 1e-6
+ACTOR_LR = 1e-7
 
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 1e-7
+CRITIC_LR = 1e-8
 
 START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.99
@@ -99,6 +99,9 @@ class DDPG(object):
 
         self.device = device
 
+        self.actor_lr = ACTOR_LR
+        self.critic_lr = CRITIC_LR
+
         self.actor = Actor(state_dim, action_dim).to(self.device)
         self.actor_target = Actor(state_dim, action_dim).to(self.device)
         self.actor_optim = optim.AdamW(self.actor.parameters(), lr=ACTOR_LR)
@@ -111,9 +114,12 @@ class DDPG(object):
         self.hard_update(self.critic_target, self.critic)
 
         self.mem = ReplayMemory(1000000)
-        self.criterion = nn.MSELoss()
+        self.criterion = nn.HuberLoss()
 
         self.normalizer = Normalizer(map)
+
+        self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=1000, gamma=0.9)
+        self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=1000, gamma=0.9)
 
     def hard_update(self, target, source):
         for target_param, param in zip(target.parameters(), source.parameters()):
@@ -165,6 +171,9 @@ class DDPG(object):
         clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
         clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
 
+
+        self.critic_lr_scheduler.step()
+        self.actor_lr_scheduler.step()
         return critic_loss.item(), actor_loss.item()
 
 class TrainingExecutor:
@@ -197,7 +206,7 @@ class TrainingExecutor:
         return total_weight, time_weight, dist_weight, angle_weight
 
     def train(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0):
-        noise = OUNoise(ACTION_DIM)
+        noise = OUNoise(ACTION_DIM, max_sigma=0.3, min_sigma=0.1, decay_period=100000)
         rewards = []
         if self.plotter is None:
             self.plotter = Model_Plotter(num_episodes)
