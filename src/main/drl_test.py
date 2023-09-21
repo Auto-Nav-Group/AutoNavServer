@@ -24,7 +24,7 @@ DRL_VENV = DRL_VENV(map=mapobj, assets_path=ASSET_PATH)
 
 #train(DRL_VENV)
 
-te = TrainingExecutor()
+te = TrainingExecutor(mapobj)
 
 while True:
     inp = input("T - Train\n"

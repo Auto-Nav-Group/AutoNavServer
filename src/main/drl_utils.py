@@ -429,9 +429,12 @@ class OUNoise(object):
         return action.cpu().detach().numpy() + ou_state
 
 
-class NormalizeState:
-    @staticmethod
-    def NormalizeState(mem, state):
+class Normalizer:
+    def __init__(self, map):
+        self.map = map
+
+    def NormalizeState(self, mem, state):
+        '''
         mem_t = Transition(*zip(*mem.memory))
         nstate = []
         states = torch.stack(mem_t.state).cpu()
@@ -446,8 +449,43 @@ class NormalizeState:
         nstate.append((state[2] - location_states_means[1]) / (location_states_std[1]))
         nstate.append((state[3] - location_states_means[2]) / (location_states_std[2]))
         nstate.append((state[4] - location_states_means[3]) / (location_states_std[3]))
+        if column_stddevs[5] == 0 or column_stddevs[6] == 0:
+            nstate.append(state[5])
+            nstate.append(state[6])
+            nstate.append(state[7])
+            nstate.append(state[8])
+            return nstate
         nstate.append((state[5] - column_means[5]) / column_stddevs[5])
         nstate.append((state[6] - column_means[6]) / column_stddevs[6])
         nstate.append(state[7])
         nstate.append(state[8])
+        return nstate'''
+        mem_t = Transition(*zip(*mem.memory))
+        states = torch.stack(mem_t.state).cpu()
+        column_means = states.mean(dim=0)
+        column_stddevs = states.std(dim=0) + 1e-8 * torch.abs(column_means)
+        if column_stddevs[5] == 0 or column_stddevs[6] == 0 or torch.isnan(column_stddevs).any():
+            nstate = [
+                (state[0]/np.pi),
+                (2*state[1]/self.map.size.width),
+                (2*state[2]/self.map.size.height),
+                (2*state[3]/self.map.size.width),
+                (2*state[4]/self.map.size.height),
+                0,
+                0,
+                state[7],
+                state[8]
+            ]
+        else:
+            nstate = [
+                (state[0]/np.pi),
+                (2*state[1]/self.map.size.width),
+                (2*state[2]/self.map.size.height),
+                (2*state[3]/self.map.size.width),
+                (2*state[4]/self.map.size.height),
+                (state[5]+column_means[5])/(column_stddevs[5]).item(),
+                (state[6]+column_means[6])/(column_stddevs[6]).item(),
+                state[7],
+                state[8]
+            ]
         return nstate

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from torch.nn.utils import clip_grad_norm_
 from torch.nn import init
 from torch.optim.lr_scheduler import StepLR
-from drl_utils import ReplayMemory, Transition, NumpyArrayEncoder, Model_Plotter, OUNoise, Model_Visualizer, NormalizeState
+from drl_utils import ReplayMemory, Transition, NumpyArrayEncoder, Model_Plotter, OUNoise, Model_Visualizer, Normalizer
 from drl_venv import MAX_SPEED, TIME_DELTA
 from IPython import display
 import torch.optim as optim
@@ -26,12 +26,12 @@ BATCH_SIZE = 128
 COLLISION_WEIGHT = -100
 TIME_WEIGHT = 0#-6
 FINISH_WEIGHT = 100
-DIST_WEIGHT = 2
-PASS_DIST_WEIGHT = -6
+DIST_WEIGHT = 0
+PASS_DIST_WEIGHT = 0
 CHALLENGE_WEIGHT = 10
 CHALLENGE_EXP_BASE = 1.25
-ANGLE_WEIGHT = -6#-2
-SPEED_WEIGHT = 3
+ANGLE_WEIGHT = 0#-2
+SPEED_WEIGHT = 0
 
 STATE_DIM = 9
 ACTION_DIM = 2
@@ -39,12 +39,12 @@ ACTION_DIM = 2
 ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 256
 
-ACTOR_LR = 1e-5
+ACTOR_LR = 1e-6
 
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 1e-6
+CRITIC_LR = 1e-7
 
 START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.99
@@ -93,7 +93,7 @@ class Critic(nn.Module):
         return self.l3(q)
 
 class DDPG(object):
-    def __init__(self, state_dim, action_dim, device):
+    def __init__(self, state_dim, action_dim, device, map):
         self.state_dim = state_dim
         self.action_dim = action_dim
 
@@ -101,17 +101,19 @@ class DDPG(object):
 
         self.actor = Actor(state_dim, action_dim).to(self.device)
         self.actor_target = Actor(state_dim, action_dim).to(self.device)
-        self.actor_optim = optim.Adam(self.actor.parameters(), lr=ACTOR_LR)
+        self.actor_optim = optim.AdamW(self.actor.parameters(), lr=ACTOR_LR)
 
         self.critic = Critic(state_dim, action_dim).to(self.device)
         self.critic_target = Critic(state_dim, action_dim).to(self.device)
-        self.critic_optim = optim.Adam(self.critic.parameters(), lr=CRITIC_LR)
+        self.critic_optim = optim.AdamW(self.critic.parameters(), lr=CRITIC_LR)
 
         self.hard_update(self.actor_target, self.actor)
         self.hard_update(self.critic_target, self.critic)
 
         self.mem = ReplayMemory(1000000)
         self.criterion = nn.MSELoss()
+
+        self.normalizer = Normalizer(map)
 
     def hard_update(self, target, source):
         for target_param, param in zip(target.parameters(), source.parameters()):
@@ -126,11 +128,11 @@ class DDPG(object):
         return action
     
     def normalize_state(self, state):
-        return NormalizeState.NormalizeState(self.mem, state)
+        return self.normalizer.NormalizeState(self.mem, state)
 
     def update_parameters(self, batch_size):
         if len(self.mem) < batch_size:
-            return -1, -1
+            return 0,0
         batch = Transition(*zip(*self.mem.sample(batch_size)))
         states = torch.stack(batch.state).to(self.device).float()
         actions = torch.stack(batch.action).to(self.device).float()
@@ -138,12 +140,16 @@ class DDPG(object):
         next_states = torch.stack(batch.next_state).to(self.device).float()
 
         #Critic loss
-        QVal = self.critic.forward((states, actions))
+        QVal = self.critic((states, actions))
         next_actions = self.actor_target.forward(next_states)
-        next_Q = self.critic_target.forward((next_states, next_actions.detach()))
+        next_Q = self.critic_target((next_states, next_actions.detach()))
         QPrime = rewards + GAMMA * next_Q
         critic_loss = self.criterion(QVal, QPrime)
         critic_loss = critic_loss.float()
+
+        self.critic_optim.zero_grad()
+        critic_loss.backward()
+        self.critic_optim.step()
 
         #Actor loss
         actor_losses = self.critic.forward((states, self.actor.forward(states)))
@@ -152,10 +158,6 @@ class DDPG(object):
         self.actor_optim.zero_grad()
         actor_loss.backward()
         self.actor_optim.step()
-
-        self.critic_optim.zero_grad()
-        critic_loss.backward()
-        self.critic_optim.step()
 
         self.soft_update(self.actor_target, self.actor, TAU)
         self.soft_update(self.critic_target, self.critic, TAU)
@@ -166,8 +168,8 @@ class DDPG(object):
         return critic_loss.item(), actor_loss.item()
 
 class TrainingExecutor:
-    def __init__(self):
-        self.ddpg = DDPG(STATE_DIM, ACTION_DIM, DEVICE)
+    def __init__(self, map):
+        self.ddpg = DDPG(STATE_DIM, ACTION_DIM, DEVICE, map)
         self.plotter = None
 
     def get_reward(self, done, collision, timestep, achieved_goal, delta_dist, initdistance, initangle, ovr_dist, angle, vel):
@@ -202,9 +204,9 @@ class TrainingExecutor:
         visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
         for episode in range(start_episode, num_episodes):
             state, dist = env.reset()
+            visualizer.start(state[1], state[2], state[3], state[4])
             if episode != start_episode:
                 state = self.ddpg.normalize_state(state)
-            visualizer.start(state[1], state[2], state[3], state[4])
             initdist = dist
             initangle = state[1]
             state = torch.FloatTensor(state).to(DEVICE)
