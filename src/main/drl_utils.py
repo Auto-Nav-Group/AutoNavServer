@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import random
 import json
@@ -306,6 +308,8 @@ class Model_Plotter():
         self.achieve_chance_y = np.asarray(stats["achieve_chance_y"])
         self.collision_chance_y = np.asarray(stats["collision_chance_y"])
         self.none_chance_y = np.asarray(stats["none_chance_y"])
+        self.a_loss_y = np.asarray(stats["a_loss_y"])
+        self.c_loss_y = np.asarray(stats["c_loss_y"])
 
 
     def save(self):
@@ -321,7 +325,9 @@ class Model_Plotter():
             "none_history": self.none_history,
             "achieve_chance_y": self.achieve_chance_y,
             "collision_chance_y": self.collision_chance_y,
-            "none_chance_y": self.none_chance_y
+            "none_chance_y": self.none_chance_y,
+            "actor_loss_y" : self.a_loss_y,
+            "critic_loss_y" : self.c_loss_y
         }
         return stats
 
@@ -432,8 +438,9 @@ class OUNoise(object):
 class Normalizer:
     def __init__(self, map):
         self.map = map
+        self.max_mes = math.sqrt(self.map.size.width**2+self.map.size.height**2)
 
-    def NormalizeState(self, mem, state):
+    def NormalizeState(self, state):
         '''
         mem_t = Transition(*zip(*mem.memory))
         nstate = []
@@ -460,32 +467,21 @@ class Normalizer:
         nstate.append(state[7])
         nstate.append(state[8])
         return nstate'''
-        mem_t = Transition(*zip(*mem.memory))
-        states = torch.stack(mem_t.state).cpu()
-        column_means = states.mean(dim=0)
-        column_stddevs = states.std(dim=0) + 1e-8 * torch.abs(column_means)
-        if column_stddevs[5] == 0 or column_stddevs[6] == 0 or torch.isnan(column_stddevs).any():
-            nstate = [
-                (state[0]/np.pi),
-                (2*state[1]/self.map.size.width),
-                (2*state[2]/self.map.size.height),
-                (2*state[3]/self.map.size.width),
-                (2*state[4]/self.map.size.height),
-                0,
-                0,
-                state[7],
-                state[8]
-            ]
-        else:
-            nstate = [
-                (state[0]/np.pi),
-                (2*state[1]/self.map.size.width),
-                (2*state[2]/self.map.size.height),
-                (2*state[3]/self.map.size.width),
-                (2*state[4]/self.map.size.height),
-                (state[5]+column_means[5])/(column_stddevs[5]).item(),
-                (state[6]+column_means[6])/(column_stddevs[6]).item(),
-                state[7],
-                state[8]
-            ]
-        return nstate
+        nstate = [
+            (state[0]/np.pi),
+            (2*state[1]/self.map.size.width),
+            (2*state[2]/self.map.size.height),
+            (2*state[3]/self.map.size.width),
+            (2*state[4]/self.map.size.height),
+            state[5]*2/self.max_mes,
+            state[6]*2/self.max_mes,
+            state[7],
+            state[8]
+        ]
+        return torch.FloatTensor(nstate)
+
+    def NormalizeStates(self, mem, states):
+        nstates = []
+        for i in range(len(states)):
+            nstates.append(self.NormalizeState(states[i]))
+        return nstates
