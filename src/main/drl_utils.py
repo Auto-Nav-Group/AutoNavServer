@@ -140,9 +140,9 @@ class Model_Plotter():
         self.avg_line, = self.ax[0].plot(self.avg_x, self.avg_y, label="Average Reward", color="blue")
         self.dist_line, = self.ax[1].plot(self.dist_x, self.dist_y, label="Distance Reward", color="red")
         self.total_reward_line, = self.ax[2].plot(self.total_reward_x, self.total_reward_y, label="Total Reward", color="green")
-        self.dist_weight_line, = self.ax[3].plot(self.dist_weight_x, self.dist_weight_y, label="Distance Weight", color="red")
-        self.angle_weight_line, = self.ax[3].plot(self.angle_weight_x, self.angle_weight_y, label="Angle Weight", color="blue")
-        self.time_weight_line, = self.ax[3].plot(self.time_weight_x, self.time_weight_y, label="Time Weight", color="green")
+        self.dist_weight_line, = self.ax[3].plot(self.dist_weight_x, self.dist_weight_y, label="Anglevel Weight", color="red")
+        self.angle_weight_line, = self.ax[3].plot(self.angle_weight_x, self.angle_weight_y, label="Mindist Weight", color="blue")
+        self.time_weight_line, = self.ax[3].plot(self.time_weight_x, self.time_weight_y, label="Velocity Weight", color="green")
         self.achieve_line, = self.ax[4].plot(self.achieve_chance_x, self.achieve_chance_y, label="Achieve Chance", color="green")
         self.collision_line, = self.ax[4].plot(self.collision_chance_x, self.collision_chance_y, label="Collision Chance", color="red")
         self.none_line, = self.ax[4].plot(self.none_chance_x, self.none_chance_y, label="None Chance", color="blue")
@@ -308,8 +308,8 @@ class Model_Plotter():
         self.achieve_chance_y = np.asarray(stats["achieve_chance_y"])
         self.collision_chance_y = np.asarray(stats["collision_chance_y"])
         self.none_chance_y = np.asarray(stats["none_chance_y"])
-        self.a_loss_y = np.asarray(stats["a_loss_y"])
-        self.c_loss_y = np.asarray(stats["c_loss_y"])
+        self.a_loss_y = np.asarray(stats["actor_loss_y"])
+        self.c_loss_y = np.asarray(stats["critic_loss_y"])
 
 
     def save(self):

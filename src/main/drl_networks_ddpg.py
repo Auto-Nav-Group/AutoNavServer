@@ -18,11 +18,11 @@ import random
 FILE_LOCATION = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\models"
 FILE_NAME = "SampleModel"
 SAVE_FREQ = 250
-VISUALIZER_ENABLED = False
+VISUALIZER_ENABLED = True
 SEPERATE_NORM_MEM = True
 
 EPISODES = 16000
-MAX_TIMESTEP = 1000
+MAX_TIMESTEP = 100
 BATCH_SIZE = 256
 
 COLLISION_WEIGHT = -1
@@ -33,7 +33,7 @@ PASS_DIST_WEIGHT = 0
 CHALLENGE_WEIGHT = 0.01
 CHALLENGE_EXP_BASE = 0.0125
 ANGLE_WEIGHT = 0#-2
-SPEED_WEIGHT = 0.01
+SPEED_WEIGHT = 0.005
 ANGLE_SPEED_WEIGHT = -0.005
 MIN_DIST_WEIGHT = -0.005
 WALL_DIST = 0.5
@@ -44,16 +44,16 @@ ACTION_DIM = 2
 ACTOR_LAYER_1 = 1024
 ACTOR_LAYER_2 = 512
 
-ACTOR_LR = 1e-6
+ACTOR_LR = 1e-4
 
 CRITIC_LAYER_1 = 1024
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 1e-7
+CRITIC_LR = 1e-5
 
 START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.99
-TAU = 1e-3
+TAU = 0.005
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -135,8 +135,8 @@ class DDPG(object):
 
         self.normalizer = Normalizer(map)
 
-        self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=1000, gamma=0.9)
-        self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=1000, gamma=0.9)
+        self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=200000, gamma=0.9)
+        self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=200000, gamma=0.9)
 
     def hard_update(self, target, source):
         for target_param, param in zip(target.parameters(), source.parameters()):
@@ -174,7 +174,6 @@ class DDPG(object):
             next_states = torch.stack(self.normalizer.NormalizeStates(self.mem, batch.next_state)).to(self.device).float()
         actions = torch.stack(batch.action).to(self.device).float()
         rewards = torch.stack(batch.reward).to(self.device).float()
-
         #Critic loss
         QVal = self.critic((states, actions))
         next_actions = self.actor_target.forward(next_states)
@@ -211,7 +210,7 @@ class TrainingExecutor:
         self.ddpg = DDPG(STATE_DIM, ACTION_DIM, DEVICE, map)
         self.plotter = None
 
-    def get_reward(self, done, collision, timestep, achieved_goal, delta_dist, initdistance, initangle, ovr_dist, angle, anglevel, vel, min_dist):
+    def get_reward(self, done, collision, achieved_goal, anglevel, vel, min_dist):
         '''
         dist_weight = delta_dist * DIST_WEIGHT
         angle_weight = (abs(angle) / np.pi) * ANGLE_WEIGHT
@@ -245,13 +244,15 @@ class TrainingExecutor:
 
 
     def train(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0):
-        noise = OUNoise(ACTION_DIM, max_sigma=0.75, min_sigma=0.25, decay_period=100000)
+        noise = OUNoise(ACTION_DIM, max_sigma=1, min_sigma=0.25, decay_period=100000)
         rewards = []
         if self.plotter is None:
             self.plotter = Model_Plotter(num_episodes)
         visualizer = None
         if VISUALIZER_ENABLED:
             visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
+
+        total_steps = 0
         for episode in range(start_episode, num_episodes):
             state, dist = env.reset()
             if VISUALIZER_ENABLED:
@@ -278,13 +279,13 @@ class TrainingExecutor:
 
             for step in range(max_steps):
                 nstate = self.ddpg.normalize_state(state).to(DEVICE)
-                action = self.ddpg.get_action_with_noise(nstate, noise, step)
-                actions.append(torch.tensor(action))
+                action = self.ddpg.get_action_with_noise(nstate, noise, total_steps)
+                actions.append(action)
                 states.append(state)
                 next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
                 ovr_dist += dist_traveled
-                reward, tw, dw, aw = self.get_reward(done, collision, step, achieved_goal, dist_traveled, initdist, initangle, ovr_dist, next_state[0], action[0], action[1], next_state[5])
-                self.ddpg.add_to_memory(state, torch.tensor(action).to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE))
+                reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1], next_state[5])
+                self.ddpg.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE))
                 episode_reward += reward
                 episode_tw += tw
                 episode_dw += dw
@@ -297,6 +298,7 @@ class TrainingExecutor:
                 episode_closs.append(c_loss)
                 episode_aloss.append(a_loss)
 
+                total_steps += 1
                 if collision is True:
                     episode_collide = 1
                     done = True
@@ -317,6 +319,65 @@ class TrainingExecutor:
             rewards.append(episode_reward)
             print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
             self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide, sum(episode_closs)/len(episode_closs), sum(episode_aloss)/len(episode_aloss))
+
+    def test(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0):
+        self.ddpg.actor.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_actor.pth"))
+        self.ddpg.critic.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_critic.pth"))
+        rewards = []
+        visualizer = None
+        if VISUALIZER_ENABLED:
+            visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
+        for episode in range(start_episode, num_episodes):
+            state, dist = env.reset()
+            if VISUALIZER_ENABLED:
+                visualizer.start(state[1], state[2], state[3], state[4])
+            initdist = dist
+            initangle = state[1]
+            state = torch.FloatTensor(state).to(DEVICE)
+            episode_reward = 0
+            episode_tw = 0
+            episode_dw = 0
+            episode_aw = 0
+            episode_achieve = 0
+            episode_collide = 0
+            episode_x = []
+            episode_y = []
+            episode_closs = []
+            episode_aloss = []
+            action_q = []
+            ovr_dist = 0
+            states = []
+            actions = []
+            for step in range(max_steps):
+                nstate = self.ddpg.normalize_state(state).to(DEVICE)
+                action = self.ddpg.get_action(nstate)
+                actions.append(action)
+                states.append(state)
+                next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
+                ovr_dist += dist_traveled
+                reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1], next_state[5])
+                episode_reward += reward
+                episode_tw += tw
+                episode_dw += dw
+                episode_aw += aw
+                episode_x.append(next_state[1])
+                episode_y.append(next_state[2])
+                state = torch.FloatTensor(next_state).to(DEVICE)
+                if collision is True:
+                    episode_collide = 1
+                    done = True
+                if achieved_goal is True:
+                    episode_achieve = 1
+                if done:
+                    break
+            states = torch.stack(states).to(self.ddpg.device)
+            actions = torch.stack(actions).to(self.ddpg.device)
+            action_q = self.ddpg.critic.forward((states, actions)).detach().cpu().numpy()
+            if VISUALIZER_ENABLED:
+                visualizer.clear()
+                visualizer.update(episode_x, episode_y, action_q)
+            rewards.append(episode_reward)
+            print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
 
 
 
@@ -355,8 +416,8 @@ class TrainingExecutor:
                 "achieve_chance_y": np.asarray(stats["achieve_chance_y"]),
                 "collision_chance_y": np.asarray(stats["collision_chance_y"]),
                 "none_chance_y": np.asarray(stats["none_chance_y"]),
-                "c_loss_y": np.asarray(stats["c_loss_y"]),
-                "a_loss_y": np.asarray(stats["a_loss_y"]),
+                "critic_loss_y": np.asarray(stats["critic_loss_y"]),
+                "actor_loss_y": np.asarray(stats["actor_loss_y"]),
             }
             self.plotter.load(np_stats)
         with open(f"{directory}/{filename}/memory.json", "r") as infile:

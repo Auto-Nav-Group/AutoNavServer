@@ -12,7 +12,7 @@ import math
 TIME_DELTA = 0.1 # Time setup in simulation
 GUI = False # GUI flag
 GOAL_REACHED_DIST = 1 # Distance to goal to be considered reached
-MIN_START_DIST = 10 # Minimum distance from start to goal
+MIN_START_DIST = 5 # Minimum distance from start to goal
 MAX_SPEED = 5 # Maximum speed of the robot
 MAX_ANGULAR_SPEED = math.pi # Maximum angular speed of the robot
 TIP_ANGLE = 30
@@ -65,8 +65,8 @@ class DRL_VENV:
         self.robotid = p.loadURDF("robot.urdf", [0, 0, 0.1])
 
     def new_goal(self):
-        self.goal_x = np.random.uniform(SPAWN_BORDER, self.basis.size.width-SPAWN_BORDER)
-        self.goal_y = np.random.uniform(SPAWN_BORDER, self.basis.size.height-SPAWN_BORDER)
+        self.goal_x = np.random.uniform(SPAWN_BORDER-self.basis.size.width/2, self.basis.size.width/2-SPAWN_BORDER)
+        self.goal_y = np.random.uniform(SPAWN_BORDER-self.basis.size.height/2, self.basis.size.height/2-SPAWN_BORDER)
         goal_fine = False
         distance = 0
         while not goal_fine:
@@ -74,16 +74,19 @@ class DRL_VENV:
             distance = math.sqrt((self.goal_x-self.x)**2+(self.goal_y-self.y)**2)
             if distance<MIN_START_DIST:
                 goal_fine=False
-                self.goal_x = np.random.uniform(0, self.basis.size.width)
-                self.goal_y = np.random.uniform(0, self.basis.size.height)
-            for i in range(len(self.basis.obstacles)):
-                if self.basis.obstacles[i].Loc.x-self.basis.obstacles[i].Size.width/2<self.goal_x<self.basis.obstacles[i].Loc.x+self.basis.obstacles[i].Size.width/2 and self.basis.obstacles[i].Loc.y-self.basis.obstacles[i].Size.height/2<self.goal_y<self.basis.obstacles[i].Loc.y+self.basis.obstacles[i].Size.height/2:
-                    goal_fine = False
-                    self.goal_x = np.random.uniform(0, self.basis.size.width)
-                    self.goal_y = np.random.uniform(0, self.basis.size.height)
-                    break
-        self.goal_x = self.goal_x-self.basis.size.width/2
-        self.goal_y = self.goal_y-self.basis.size.height/2
+                self.goal_x = np.random.uniform(SPAWN_BORDER - self.basis.size.width / 2,
+                                                self.basis.size.width / 2 - SPAWN_BORDER)
+                self.goal_y = np.random.uniform(SPAWN_BORDER - self.basis.size.height / 2,
+                                                self.basis.size.height / 2 - SPAWN_BORDER)
+            if goal_fine is True:
+                for i in range(len(self.basis.obstacles)):
+                    if self.basis.obstacles[i].Loc.x-self.basis.obstacles[i].Size.width/2<self.goal_x<self.basis.obstacles[i].Loc.x+self.basis.obstacles[i].Size.width/2 and self.basis.obstacles[i].Loc.y-self.basis.obstacles[i].Size.height/2<self.goal_y<self.basis.obstacles[i].Loc.y+self.basis.obstacles[i].Size.height/2:
+                        goal_fine = False
+                        self.goal_x = np.random.uniform(SPAWN_BORDER - self.basis.size.width / 2,
+                                                        self.basis.size.width / 2 - SPAWN_BORDER)
+                        self.goal_y = np.random.uniform(SPAWN_BORDER - self.basis.size.height / 2,
+                                                        self.basis.size.height / 2 - SPAWN_BORDER)
+                        break
         self.goal = p.loadURDF("goal.urdf", [self.goal_x, self.goal_y, 0.1])
 
     def reset_situation(self, ideal_angle, new_goal=True):

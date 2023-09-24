@@ -28,7 +28,8 @@ te = TrainingExecutor(mapobj)
 
 while True:
     inp = input("T - Train\n"
-          "L - Load")
+          "L - Load\n"
+                "R - Run\n")
     inp = inp.upper()
     if inp == "T":
         #train(DRL_VENV)
@@ -36,4 +37,6 @@ while True:
     elif inp == "L":
         e = te.load()
         te.train(DRL_VENV, start_episode=e)
+    elif inp == "R":
+        te.test(DRL_VENV)
     time.sleep(1)
