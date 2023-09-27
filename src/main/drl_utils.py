@@ -286,7 +286,16 @@ class Model_Plotter():
         except:
             print("Error in setting limits")
 
-        wandb.log()
+
+        wandb_params = {
+            "actor_loss" : self.a_loss_y[episode],
+            "critic_loss" : self.c_loss_y[episode],
+            "avg_reward" : self.avg_y[episode],
+            "achieve_rate" : self.achieve_chance_y[episode],
+            "anglevel_reward" : self.dist_weight_y[episode],
+            "vel_reward" : self.time_weight_y[episode]
+        }
+        wandb.log(wandb_params)
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -324,8 +333,9 @@ class Model_Plotter():
             "achieve_chance_y": self.achieve_chance_y,
             "collision_chance_y": self.collision_chance_y,
             "none_chance_y": self.none_chance_y,
-            "actor_loss_y" : self.a_loss_y,
-            "critic_loss_y" : self.c_loss_y
+            "actor_loss" : self.a_loss_y,
+            "critic_loss" : self.c_loss_y,
+            "avg_reward"
         }
         return stats
 
