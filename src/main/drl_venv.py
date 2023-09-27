@@ -148,10 +148,10 @@ class DRL_VENV:
         if type(action) == torch.Tensor:
             action = action.cpu().detach().numpy()
 
+        rotation_yaw = action[0]*float(MAX_ANGULAR_SPEED)
+
         action_x = action[1]*MAX_SPEED*math.cos(yaw)
         action_y = action[1]*MAX_SPEED*math.sin(yaw)
-
-        rotation_yaw = action[0]*float(MAX_ANGULAR_SPEED)
 
         p.resetBaseVelocity(self.robotid, [action_x, action_y, 0], [0, 0, rotation_yaw])
 
@@ -197,6 +197,8 @@ class DRL_VENV:
         # Detect if the goal has been reached and give a large positive reward
         if distance < GOAL_REACHED_DIST:
             achieved_goal = True
+            done = True
+        if collision is True:
             done = True
         robot_state = [theta, self.x, self.y, self.goal_x, self.goal_y, self.run_lidar(), timestep*TIME_DELTA, action[0], action[1]]
         #reward = self.get_reward(target, collision, action)

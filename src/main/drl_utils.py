@@ -1,5 +1,5 @@
 import math
-
+import wandb
 import numpy as np
 import random
 import json
@@ -210,22 +210,19 @@ class Model_Plotter():
         achieve_prob = 100*sum(self.achieve_history) / (episode + 1)
         collision_prob = 100*sum(self.collision_history) / (episode + 1)
         if episode > 100:
-            recent_achieves = self.achieve_history
-            recent_collisions = self.collision_history
-            for i in range(episode):
-                if i < episode - 100:
-                    recent_achieves = np.delete(recent_achieves, 0)
-                    recent_achieves = np.resize(recent_achieves, recent_achieves.size - 1)
-                    recent_collisions = np.delete(recent_collisions, 0)
-                    recent_collisions = np.resize(recent_collisions, recent_achieves.size - 1)
-                else:
-                    break
+            recent_achieves = np.zeros(100)
+            recent_collisions = np.zeros(100)
+            for i in range(100):
+                recent_achieves.put(i, self.achieve_history[episode-i])
+                recent_collisions.put(i, self.collision_history[episode-i])
             achieve_prob = sum(recent_achieves)
             collision_prob = sum(recent_collisions)
 
             total = np.zeros(episode+1)
             for i in range(episode+1):
-                if recent_achieves[i] == 1:
+                if len(recent_achieves) == 0:
+                    break
+                elif recent_achieves[i] == 1:
                     total[i] = 1
                     break
                 elif recent_collisions[i] == 1:
@@ -289,6 +286,7 @@ class Model_Plotter():
         except:
             print("Error in setting limits")
 
+        wandb.log()
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()

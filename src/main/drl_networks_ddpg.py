@@ -4,6 +4,7 @@ import torch.nn as nn
 import time
 import os
 import json
+import wandb
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from torch.nn.utils import clip_grad_norm_
@@ -18,44 +19,83 @@ import random
 FILE_LOCATION = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\models"
 FILE_NAME = "SampleModel"
 SAVE_FREQ = 250
-VISUALIZER_ENABLED = True
+VISUALIZER_ENABLED = False
 SEPERATE_NORM_MEM = True
 
-EPISODES = 16000
+EPISODES = 15000
 MAX_TIMESTEP = 100
-BATCH_SIZE = 256
+BATCH_SIZE = 512
 
-COLLISION_WEIGHT = -1
+COLLISION_WEIGHT = -100
 TIME_WEIGHT = 0#-6
-FINISH_WEIGHT = 1
+FINISH_WEIGHT = 100
 DIST_WEIGHT = 0
 PASS_DIST_WEIGHT = 0
 CHALLENGE_WEIGHT = 0.01
 CHALLENGE_EXP_BASE = 0.0125
 ANGLE_WEIGHT = 0#-2
-SPEED_WEIGHT = 0.005
-ANGLE_SPEED_WEIGHT = -0.005
-MIN_DIST_WEIGHT = -0.005
+SPEED_WEIGHT = 0.5
+ANGLE_SPEED_WEIGHT = -0.5
+MIN_DIST_WEIGHT = -0.5
 WALL_DIST = 0.5
 
 STATE_DIM = 9
 ACTION_DIM = 2
 
-ACTOR_LAYER_1 = 1024
+ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 512
 
 ACTOR_LR = 1e-4
+ACTOR_LR_STEP_SIZE = 100000
+ACTOR_LR_GAMMA = 0.1
 
-CRITIC_LAYER_1 = 1024
+CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
 CRITIC_LR = 1e-5
+CRITIC_LR_STEP_SIZE = 100000
+CRITIC_LR_GAMMA = 0.1
+
 
 START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.99
-TAU = 0.005
+TAU = 1e-4
+
+START_NOISE = 0.9
+END_NOISE = 0
+NOISE_DECAY_STEPS = 7500000
+
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+LOGGER_CONFIG = {
+    "batch_size": BATCH_SIZE,
+    "gamma": GAMMA,
+    "tau": TAU,
+    "actor_layer_1": ACTOR_LAYER_1,
+    "actor_layer_2": ACTOR_LAYER_2,
+    "critic_layer_1": CRITIC_LAYER_1,
+    "critic_layer_2": CRITIC_LAYER_2,
+    "actor_lr": ACTOR_LR,
+    "critic_lr": CRITIC_LR,
+    "actor_lr_step_size": ACTOR_LR_STEP_SIZE,
+    "actor_lr_gamma": ACTOR_LR_GAMMA,
+    "critic_lr_step_size": CRITIC_LR_STEP_SIZE,
+    "critic_lr_gamma": CRITIC_LR_GAMMA,
+    "start_noise": START_NOISE,
+    "end_noise": END_NOISE,
+    "noise_decay_steps": NOISE_DECAY_STEPS,
+    "architecture": "DDPG",
+    "current_actor_lr": ACTOR_LR,
+    "current_critic_lr": CRITIC_LR
+    "actor_loss": 0,
+    "critic_loss": 0,
+    "avg_reward" : 0,
+    "achieve_rate" : 0,
+    "loss_rate" : 0,
+    "anglevel_reward" : 0,
+    "vel_reward" : 0
+}
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim):
@@ -131,12 +171,12 @@ class DDPG(object):
         self.norm_mem = ReplayMemory(1)
         if SEPERATE_NORM_MEM:
             self.norm_mem = ReplayMemory(1000000)
-        self.criterion = nn.HuberLoss()
+        self.criterion = nn.MSELoss()
 
         self.normalizer = Normalizer(map)
 
-        self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=200000, gamma=0.9)
-        self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=200000, gamma=0.9)
+        self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=ACTOR_LR_STEP_SIZE, gamma=ACTOR_LR_GAMMA)
+        self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=CRITIC_LR_STEP_SIZE, gamma=CRITIC_LR_GAMMA)
 
     def hard_update(self, target, source):
         for target_param, param in zip(target.parameters(), source.parameters()):
@@ -209,6 +249,7 @@ class TrainingExecutor:
     def __init__(self, map):
         self.ddpg = DDPG(STATE_DIM, ACTION_DIM, DEVICE, map)
         self.plotter = None
+        self.logger = None
 
     def get_reward(self, done, collision, achieved_goal, anglevel, vel, min_dist):
         '''
@@ -238,14 +279,17 @@ class TrainingExecutor:
         if done:
             if achieved_goal:
                 return FINISH_WEIGHT, 1, 1, 1
+            else:
+                return COLLISION_WEIGHT/2, 1, 1, 1
         if collision:
             return COLLISION_WEIGHT, 1, 1, 1
-        return vel*SPEED_WEIGHT+anglevel*ANGLE_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT, (vel*SPEED_WEIGHT).item(), (anglevel*ANGLE_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
+        return (vel)*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT, ((vel)*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
 
 
     def train(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0):
-        noise = OUNoise(ACTION_DIM, max_sigma=1, min_sigma=0.25, decay_period=100000)
+        noise = OUNoise(ACTION_DIM, max_sigma=START_NOISE, min_sigma=END_NOISE, decay_period=NOISE_DECAY_STEPS)
         rewards = []
+        self.logger = wandb.init(project="autonav", config=LOGGER_CONFIG)
         if self.plotter is None:
             self.plotter = Model_Plotter(num_episodes)
         visualizer = None
@@ -283,6 +327,8 @@ class TrainingExecutor:
                 actions.append(action)
                 states.append(state)
                 next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
+                if step == max_steps-1:
+                    done = True
                 ovr_dist += dist_traveled
                 reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1], next_state[5])
                 self.ddpg.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE))
@@ -324,13 +370,10 @@ class TrainingExecutor:
         self.ddpg.actor.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_actor.pth"))
         self.ddpg.critic.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_critic.pth"))
         rewards = []
-        visualizer = None
-        if VISUALIZER_ENABLED:
-            visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
+        visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
         for episode in range(start_episode, num_episodes):
             state, dist = env.reset()
-            if VISUALIZER_ENABLED:
-                visualizer.start(state[1], state[2], state[3], state[4])
+            visualizer.start(state[1], state[2], state[3], state[4])
             initdist = dist
             initangle = state[1]
             state = torch.FloatTensor(state).to(DEVICE)
@@ -373,9 +416,8 @@ class TrainingExecutor:
             states = torch.stack(states).to(self.ddpg.device)
             actions = torch.stack(actions).to(self.ddpg.device)
             action_q = self.ddpg.critic.forward((states, actions)).detach().cpu().numpy()
-            if VISUALIZER_ENABLED:
-                visualizer.clear()
-                visualizer.update(episode_x, episode_y, action_q)
+            visualizer.clear()
+            visualizer.update(episode_x, episode_y, action_q)
             rewards.append(episode_reward)
             print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
 
