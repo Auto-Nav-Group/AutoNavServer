@@ -22,16 +22,16 @@ SWEEP_CONFIG = {
 
 FILE_LOCATION = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\models"
 FILE_NAME = "SampleModel"
-SAVE_FREQ = -1
+SAVE_FREQ = 4999
 VISUALIZER_ENABLED = False
 SEPERATE_NORM_MEM = True
 
-EPISODES = 15000
+EPISODES = 5000
 MAX_TIMESTEP = 100
 BATCH_SIZE = 512
 
 COLLISION_WEIGHT = -100
-TIME_WEIGHT = -0.5#-6
+TIME_WEIGHT = 0#-6
 FINISH_WEIGHT = 100
 DIST_WEIGHT = 0
 PASS_DIST_WEIGHT = 0
@@ -39,7 +39,7 @@ CHALLENGE_WEIGHT = 0.01
 CHALLENGE_EXP_BASE = 0.0125
 ANGLE_WEIGHT = 0#-2
 SPEED_WEIGHT = 0.5
-ANGLE_SPEED_WEIGHT = 0#-0.5
+ANGLE_SPEED_WEIGHT = -0.5#-0.5
 MIN_DIST_WEIGHT = -0.5
 WALL_DIST = 0.5
 
@@ -49,25 +49,25 @@ ACTION_DIM = 2
 ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 512
 
-ACTOR_LR = 1e-4
-ACTOR_LR_STEP_SIZE = 200000
-ACTOR_LR_GAMMA = 0.1
+ACTOR_LR = 0.000001
+ACTOR_LR_STEP_SIZE = 180000
+ACTOR_LR_GAMMA = 0.452
 
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 1e-5
-CRITIC_LR_STEP_SIZE = 100000
-CRITIC_LR_GAMMA = 0.1
+CRITIC_LR = 0.00003
+CRITIC_LR_STEP_SIZE = 96000
+CRITIC_LR_GAMMA = 0.363
 
 
 START_WEIGHT_THRESHOLD = 3e-3
-GAMMA = 0.99
-TAU = 1e-4
+GAMMA = 0.87
+TAU = 9e-3
 
 START_NOISE = 0.9
 END_NOISE = 0
-NOISE_DECAY_STEPS = 7500000
+NOISE_DECAY_STEPS = 175000
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -329,7 +329,7 @@ class TrainingExecutor:
         if config is None:
             noise = OUNoise(ACTION_DIM, max_sigma=START_NOISE, min_sigma=END_NOISE, decay_period=NOISE_DECAY_STEPS)
             rewards = []
-            self.logger = wandb.init(project="autonav", config=LOGGER_CONFIG)
+            self.logger = wandb.init(project="autonav", config=LOGGER_CONFIG, name="cuda-v1 release candidate")
             if self.plotter is None:
                 self.plotter = Model_Plotter(num_episodes, plotter_display)
             visualizer = None
