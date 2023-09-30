@@ -16,9 +16,13 @@ from IPython import display
 import torch.optim as optim
 import random
 
+SWEEP_CONFIG = {
+
+}
+
 FILE_LOCATION = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\models"
 FILE_NAME = "SampleModel"
-SAVE_FREQ = 250
+SAVE_FREQ = -1
 VISUALIZER_ENABLED = False
 SEPERATE_NORM_MEM = True
 
@@ -27,7 +31,7 @@ MAX_TIMESTEP = 100
 BATCH_SIZE = 512
 
 COLLISION_WEIGHT = -100
-TIME_WEIGHT = 0#-6
+TIME_WEIGHT = -0.5#-6
 FINISH_WEIGHT = 100
 DIST_WEIGHT = 0
 PASS_DIST_WEIGHT = 0
@@ -35,7 +39,7 @@ CHALLENGE_WEIGHT = 0.01
 CHALLENGE_EXP_BASE = 0.0125
 ANGLE_WEIGHT = 0#-2
 SPEED_WEIGHT = 0.5
-ANGLE_SPEED_WEIGHT = -0.5
+ANGLE_SPEED_WEIGHT = 0#-0.5
 MIN_DIST_WEIGHT = -0.5
 WALL_DIST = 0.5
 
@@ -46,7 +50,7 @@ ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 512
 
 ACTOR_LR = 1e-4
-ACTOR_LR_STEP_SIZE = 100000
+ACTOR_LR_STEP_SIZE = 200000
 ACTOR_LR_GAMMA = 0.1
 
 CRITIC_LAYER_1 = 512
@@ -87,7 +91,7 @@ LOGGER_CONFIG = {
     "noise_decay_steps": NOISE_DECAY_STEPS,
     "architecture": "DDPG",
     "current_actor_lr": ACTOR_LR,
-    "current_critic_lr": CRITIC_LR
+    "current_critic_lr": CRITIC_LR,
     "actor_loss": 0,
     "critic_loss": 0,
     "avg_reward" : 0,
@@ -147,36 +151,64 @@ class Critic(nn.Module):
         return self.l3(q)
 
 class DDPG(object):
-    def __init__(self, state_dim, action_dim, device, map):
+    def __init__(self, state_dim, action_dim, device, map, config=None):
         self.state_dim = state_dim
         self.action_dim = action_dim
 
         self.device = device
 
-        self.actor_lr = ACTOR_LR
-        self.critic_lr = CRITIC_LR
+        if config is None:
+            self.config = None
+            self.actor_lr = ACTOR_LR
+            self.critic_lr = CRITIC_LR
 
-        self.actor = Actor(state_dim, action_dim).to(self.device)
-        self.actor_target = Actor(state_dim, action_dim).to(self.device)
-        self.actor_optim = optim.AdamW(self.actor.parameters(), lr=ACTOR_LR)
+            self.actor = Actor(state_dim, action_dim).to(self.device)
+            self.actor_target = Actor(state_dim, action_dim).to(self.device)
+            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=ACTOR_LR)
 
-        self.critic = Critic(state_dim, action_dim).to(self.device)
-        self.critic_target = Critic(state_dim, action_dim).to(self.device)
-        self.critic_optim = optim.AdamW(self.critic.parameters(), lr=CRITIC_LR)
+            self.critic = Critic(state_dim, action_dim).to(self.device)
+            self.critic_target = Critic(state_dim, action_dim).to(self.device)
+            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=CRITIC_LR)
 
-        self.hard_update(self.actor_target, self.actor)
-        self.hard_update(self.critic_target, self.critic)
+            self.hard_update(self.actor_target, self.actor)
+            self.hard_update(self.critic_target, self.critic)
 
-        self.mem = ReplayMemory(1000000)
-        self.norm_mem = ReplayMemory(1)
-        if SEPERATE_NORM_MEM:
-            self.norm_mem = ReplayMemory(1000000)
-        self.criterion = nn.MSELoss()
+            self.mem = ReplayMemory(10000000)
+            self.norm_mem = ReplayMemory(1)
+            if SEPERATE_NORM_MEM:
+                self.norm_mem = ReplayMemory(10000000)
+            self.criterion = nn.MSELoss()
 
-        self.normalizer = Normalizer(map)
+            self.normalizer = Normalizer(map)
 
-        self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=ACTOR_LR_STEP_SIZE, gamma=ACTOR_LR_GAMMA)
-        self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=CRITIC_LR_STEP_SIZE, gamma=CRITIC_LR_GAMMA)
+            self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=ACTOR_LR_STEP_SIZE, gamma=ACTOR_LR_GAMMA)
+            self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=CRITIC_LR_STEP_SIZE, gamma=CRITIC_LR_GAMMA)
+        else:
+            self.config = config
+            self.actor_lr = config.actor_lr
+            self.critic_lr = config.critic_lr
+
+            self.actor = Actor(state_dim, action_dim).to(self.device)
+            self.actor_target = Actor(state_dim, action_dim).to(self.device)
+            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=self.actor_lr)
+
+            self.critic = Critic(state_dim, action_dim).to(self.device)
+            self.critic_target = Critic(state_dim, action_dim).to(self.device)
+            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr)
+
+            self.hard_update(self.actor_target, self.actor)
+            self.hard_update(self.critic_target, self.critic)
+
+            self.mem = ReplayMemory(10000000)
+            self.norm_mem = ReplayMemory(1)
+            if SEPERATE_NORM_MEM:
+                self.norm_mem = ReplayMemory(10000000)
+            self.criterion = nn.MSELoss()
+
+            self.normalizer = Normalizer(map)
+
+            self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
+            self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
 
     def hard_update(self, target, source):
         for target_param, param in zip(target.parameters(), source.parameters()):
@@ -218,7 +250,10 @@ class DDPG(object):
         QVal = self.critic((states, actions))
         next_actions = self.actor_target.forward(next_states)
         next_Q = self.critic_target((next_states, next_actions.detach()))
-        QPrime = rewards + GAMMA * next_Q
+        if self.config is None:
+            QPrime = rewards + GAMMA * next_Q
+        else:
+            QPrime = rewards + self.config.gamma * next_Q
         critic_loss = self.criterion(QVal, QPrime)
         critic_loss = critic_loss.float()
 
@@ -234,8 +269,12 @@ class DDPG(object):
         actor_loss.backward()
         self.actor_optim.step()
 
-        self.soft_update(self.actor_target, self.actor, TAU)
-        self.soft_update(self.critic_target, self.critic, TAU)
+        if self.config is None:
+            self.soft_update(self.actor_target, self.actor, TAU)
+            self.soft_update(self.critic_target, self.critic, TAU)
+        else:
+            self.soft_update(self.actor_target, self.actor, self.config.tau)
+            self.soft_update(self.critic_target, self.critic, self.config.tau)
 
         clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
         clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
@@ -251,7 +290,7 @@ class TrainingExecutor:
         self.plotter = None
         self.logger = None
 
-    def get_reward(self, done, collision, achieved_goal, anglevel, vel, min_dist):
+    def get_reward(self, done, collision, achieved_goal, anglevel, vel, min_dist, config=None):
         '''
         dist_weight = delta_dist * DIST_WEIGHT
         angle_weight = (abs(angle) / np.pi) * ANGLE_WEIGHT
@@ -283,88 +322,172 @@ class TrainingExecutor:
                 return COLLISION_WEIGHT/2, 1, 1, 1
         if collision:
             return COLLISION_WEIGHT, 1, 1, 1
-        return (vel)*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT, ((vel)*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
+        return (vel)*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT+TIME_WEIGHT, ((vel)*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
 
 
-    def train(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0):
-        noise = OUNoise(ACTION_DIM, max_sigma=START_NOISE, min_sigma=END_NOISE, decay_period=NOISE_DECAY_STEPS)
-        rewards = []
-        self.logger = wandb.init(project="autonav", config=LOGGER_CONFIG)
-        if self.plotter is None:
-            self.plotter = Model_Plotter(num_episodes)
-        visualizer = None
-        if VISUALIZER_ENABLED:
-            visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
-
-        total_steps = 0
-        for episode in range(start_episode, num_episodes):
-            state, dist = env.reset()
+    def train(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0, config=None, map=None, plotter_display=True):
+        if config is None:
+            noise = OUNoise(ACTION_DIM, max_sigma=START_NOISE, min_sigma=END_NOISE, decay_period=NOISE_DECAY_STEPS)
+            rewards = []
+            self.logger = wandb.init(project="autonav", config=LOGGER_CONFIG)
+            if self.plotter is None:
+                self.plotter = Model_Plotter(num_episodes, plotter_display)
+            visualizer = None
             if VISUALIZER_ENABLED:
-                visualizer.start(state[1], state[2], state[3], state[4])
-            initdist = dist
-            initangle = state[1]
-            state = torch.FloatTensor(state).to(DEVICE)
-            noise.reset()
-            episode_reward = 0
-            episode_tw = 0
-            episode_dw = 0
-            episode_aw = 0
-            episode_achieve = 0
-            episode_collide = 0
-            episode_x = []
-            episode_y = []
-            episode_closs = []
-            episode_aloss = []
-            action_q = []
-            ovr_dist = 0
+                visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
 
-            states = []
-            actions = []
+            total_steps = 0
+            for episode in range(start_episode, num_episodes):
+                state, dist = env.reset()
+                if VISUALIZER_ENABLED:
+                    visualizer.start(state[1], state[2], state[3], state[4])
+                initdist = dist
+                initangle = state[1]
+                state = torch.FloatTensor(state).to(DEVICE)
+                noise.reset()
+                episode_reward = 0
+                episode_tw = 0
+                episode_dw = 0
+                episode_aw = 0
+                episode_achieve = 0
+                episode_collide = 0
+                episode_x = []
+                episode_y = []
+                episode_closs = []
+                episode_aloss = []
+                action_q = []
+                ovr_dist = 0
 
-            for step in range(max_steps):
-                nstate = self.ddpg.normalize_state(state).to(DEVICE)
-                action = self.ddpg.get_action_with_noise(nstate, noise, total_steps)
-                actions.append(action)
-                states.append(state)
-                next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
-                if step == max_steps-1:
-                    done = True
-                ovr_dist += dist_traveled
-                reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1], next_state[5])
-                self.ddpg.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE))
-                episode_reward += reward
-                episode_tw += tw
-                episode_dw += dw
-                episode_aw += aw
-                episode_x.append(next_state[1])
-                episode_y.append(next_state[2])
-                state = torch.FloatTensor(next_state).to(DEVICE)
+                states = []
+                actions = []
 
-                c_loss, a_loss = self.ddpg.update_parameters(batch_size)
-                episode_closs.append(c_loss)
-                episode_aloss.append(a_loss)
+                for step in range(max_steps):
+                    nstate = self.ddpg.normalize_state(state).to(DEVICE)
+                    action = self.ddpg.get_action_with_noise(nstate, noise, total_steps)
+                    actions.append(action)
+                    states.append(state)
+                    next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
+                    if step == max_steps-1:
+                        done = True
+                    ovr_dist += dist_traveled
+                    reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1], next_state[5])
+                    self.ddpg.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE))
+                    episode_reward += reward
+                    episode_tw += tw
+                    episode_dw += dw
+                    episode_aw += aw
+                    episode_x.append(next_state[1])
+                    episode_y.append(next_state[2])
+                    state = torch.FloatTensor(next_state).to(DEVICE)
 
-                total_steps += 1
-                if collision is True:
-                    episode_collide = 1
-                    done = True
-                if achieved_goal is True:
-                    episode_achieve = 1
-                if done:
-                    break
+                    c_loss, a_loss = self.ddpg.update_parameters(batch_size)
+                    episode_closs.append(c_loss)
+                    episode_aloss.append(a_loss)
 
-            states = torch.stack(states).to(self.ddpg.device)
-            actions = torch.stack(actions).to(self.ddpg.device)
-            action_q = self.ddpg.critic.forward((states, actions)).detach().cpu().numpy()
+                    total_steps += 1
+                    if collision is True:
+                        episode_collide = 1
+                        done = True
+                    if achieved_goal is True:
+                        episode_achieve = 1
+                    if done:
+                        break
+
+                states = torch.stack(states).to(self.ddpg.device)
+                actions = torch.stack(actions).to(self.ddpg.device)
+                action_q = self.ddpg.critic.forward((states, actions)).detach().cpu().numpy()
+                if VISUALIZER_ENABLED:
+                    visualizer.clear()
+                    visualizer.update(episode_x, episode_y, action_q)
+                if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
+                    self.save(episode)
+
+                rewards.append(episode_reward)
+                print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
+                self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide, sum(episode_closs)/len(episode_closs), sum(episode_aloss)/len(episode_aloss))
+        else:
+            noise = OUNoise(ACTION_DIM, max_sigma=config.start_noise, min_sigma=END_NOISE, decay_period=config.noise_decay_steps)
+            rewards = []
+            if self.plotter is None:
+                self.plotter = Model_Plotter(num_episodes, plotter_display)
+            visualizer = None
             if VISUALIZER_ENABLED:
-                visualizer.clear()
-                visualizer.update(episode_x, episode_y, action_q)
-            if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
-                self.save(episode)
+                visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
+            self.ddpg = DDPG(STATE_DIM, ACTION_DIM, DEVICE, map, config=config)
+            total_steps = 0
+            for episode in range(start_episode, num_episodes):
+                state, dist = env.reset()
+                if VISUALIZER_ENABLED:
+                    visualizer.start(state[1], state[2], state[3], state[4])
+                initdist = dist
+                initangle = state[1]
+                state = torch.FloatTensor(state).to(DEVICE)
+                noise.reset()
+                episode_reward = 0
+                episode_tw = 0
+                episode_dw = 0
+                episode_aw = 0
+                episode_achieve = 0
+                episode_collide = 0
+                episode_x = []
+                episode_y = []
+                episode_closs = []
+                episode_aloss = []
+                action_q = []
+                ovr_dist = 0
 
-            rewards.append(episode_reward)
-            print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
-            self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide, sum(episode_closs)/len(episode_closs), sum(episode_aloss)/len(episode_aloss))
+                states = []
+                actions = []
+
+                for step in range(max_steps):
+                    nstate = self.ddpg.normalize_state(state).to(DEVICE)
+                    action = self.ddpg.get_action_with_noise(nstate, noise, total_steps)
+                    actions.append(action)
+                    states.append(state)
+                    next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
+                    if step == max_steps - 1:
+                        done = True
+                    ovr_dist += dist_traveled
+                    reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1],
+                                                         next_state[5])
+                    self.ddpg.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE),
+                                            torch.tensor([reward]).to(DEVICE))
+                    episode_reward += reward
+                    episode_tw += tw
+                    episode_dw += dw
+                    episode_aw += aw
+                    episode_x.append(next_state[1])
+                    episode_y.append(next_state[2])
+                    state = torch.FloatTensor(next_state).to(DEVICE)
+
+                    c_loss, a_loss = self.ddpg.update_parameters(BATCH_SIZE)
+                    episode_closs.append(c_loss)
+                    episode_aloss.append(a_loss)
+
+                    total_steps += 1
+                    if collision is True:
+                        episode_collide = 1
+                        done = True
+                    if achieved_goal is True:
+                        episode_achieve = 1
+                    if done:
+                        break
+
+                states = torch.stack(states).to(self.ddpg.device)
+                actions = torch.stack(actions).to(self.ddpg.device)
+                action_q = self.ddpg.critic.forward((states, actions)).detach().cpu().numpy()
+                if VISUALIZER_ENABLED:
+                    visualizer.clear()
+                    visualizer.update(episode_x, episode_y, action_q)
+                if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
+                    self.save(episode)
+
+                rewards.append(episode_reward)
+                print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
+                self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw,
+                                    episode_achieve, episode_collide, sum(episode_closs) / len(episode_closs),
+                                    sum(episode_aloss) / len(episode_aloss))
+        wandb.finish()
 
     def test(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0):
         self.ddpg.actor.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_actor.pth"))

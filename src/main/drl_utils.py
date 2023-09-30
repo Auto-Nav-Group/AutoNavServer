@@ -105,9 +105,11 @@ class TensorEncoder(JSONEncoder):
 class Model_Plotter():
     def __init__(
             self,
-            episodes
+            episodes,
+            plotter_display
     ):
-        plt.ion()
+        if plotter_display:
+            plt.ion()
         self.prev_total_reward = 0
         self.avg_x = np.arange(episodes)
         self.avg_y = np.zeros(episodes)
@@ -150,8 +152,9 @@ class Model_Plotter():
         self.c_loss_line = self.ax[6].plot(self.c_loss_x, self.c_loss_y, label="Critic Loss", color="red")[0]
         self.ax[3].legend(handles=[self.dist_weight_line, self.angle_weight_line, self.time_weight_line])
         self.ax[4].legend(handles=[self.achieve_line, self.collision_line, self.none_line])
-
-        plt.show()
+        self.show = plotter_display
+        if plotter_display:
+            plt.show()
 
     def update(
         self,
@@ -297,9 +300,10 @@ class Model_Plotter():
         }
         wandb.log(wandb_params)
 
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-        plt.pause(0.001)
+        if self.show:
+            self.fig.canvas.draw()
+            self.fig.canvas.flush_events()
+            plt.pause(0.001)
 
 
     def load(self, stats):
@@ -335,7 +339,7 @@ class Model_Plotter():
             "none_chance_y": self.none_chance_y,
             "actor_loss" : self.a_loss_y,
             "critic_loss" : self.c_loss_y,
-            "avg_reward"
+            "avg_reward" : self.avg_y
         }
         return stats
 
