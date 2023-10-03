@@ -167,7 +167,9 @@ class Model_Plotter():
         achieve_chance_y,
         collision_chance_y,
         c_loss_y,
-        a_loss_y
+        a_loss_y,
+        eval_rew,
+        eval_ac
     ):
         if self.total_reward_y[99]==self.prev_total_reward or episode > 99:
             self.total_reward_y = np.delete(self.total_reward_y, 0)
@@ -290,14 +292,26 @@ class Model_Plotter():
             print("Error in setting limits")
 
 
-        wandb_params = {
-            "actor_loss" : self.a_loss_y[episode],
-            "critic_loss" : self.c_loss_y[episode],
-            "avg_reward" : self.avg_y[episode],
-            "achieve_rate" : self.achieve_chance_y[episode],
-            "anglevel_reward" : self.dist_weight_y[episode],
-            "vel_reward" : self.time_weight_y[episode]
-        }
+        if eval_rew != -1 and eval_ac != -1:
+            wandb_params = {
+                "actor_loss" : self.a_loss_y[episode],
+                "critic_loss" : self.c_loss_y[episode],
+                "avg_reward" : self.avg_y[episode],
+                "achieve_rate" : self.achieve_chance_y[episode],
+                "anglevel_reward" : self.dist_weight_y[episode],
+                "vel_reward" : self.time_weight_y[episode]
+            }
+        else:
+            wandb_params = {
+                "actor_loss" : self.a_loss_y[episode],
+                "critic_loss" : self.c_loss_y[episode],
+                "avg_reward" : self.avg_y[episode],
+                "achieve_rate" : self.achieve_chance_y[episode],
+                "anglevel_reward" : self.dist_weight_y[episode],
+                "vel_reward" : self.time_weight_y[episode],
+                "eval_reward" : eval_rew,
+                "eval_action" : eval_ac
+            }
         wandb.log(wandb_params)
 
         if self.show:

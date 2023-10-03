@@ -1,7 +1,14 @@
 from map import Map
 import os
+import sys
 
-ASSET_PATH = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\generate_map_files"
+if sys.platform == "win32":
+    ASSET_PATH = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\generate_map_files"
+elif sys.platform == "linux" or sys.platform == "linux2":
+    ASSET_PATH = '/home/jovyan/workspace/AutoNavServer/assets/drl/generate_map_files'
+else:
+    print("SYSTEM NOT SUPPORTED. EXITING")
+    exit()
 #ASSET_PATH_ENV = ASSET_PATH + "\\environment"
 #ASSET_PATH_DYNAMIC = ASSET_PATH + "\\dynamic"
 #ASSET_PATH = "/Users/maximkudryashov/Projects/AutoNav/AutoNavServer/assets/drl/generate_map_files"

@@ -3,6 +3,7 @@ import numpy as np
 import torch.nn as nn
 import time
 import os
+import sys
 import json
 import wandb
 import torch.nn.functional as F
@@ -20,9 +21,16 @@ SWEEP_CONFIG = {
 
 }
 
-FILE_LOCATION = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\models"
+if sys.platform == "win32":
+    FILE_LOCATION = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\models"
+elif sys.platform == "linux" or sys.platform == "linux2":
+    FILE_LOCATION = "/home/jovyan/workspace/AutoNavServer/assets/drl/models"
+else:
+    print("SYSTEM NOT SUPPORTED. EXITING")
+    exit()
 FILE_NAME = "SampleModel"
 SAVE_FREQ = 4999
+EVAL_FREQ = 10
 VISUALIZER_ENABLED = False
 SEPERATE_NORM_MEM = True
 
@@ -52,6 +60,7 @@ ACTOR_LAYER_2 = 512
 ACTOR_LR = 0.000001
 ACTOR_LR_STEP_SIZE = 180000
 ACTOR_LR_GAMMA = 0.452
+ACTOR_LR_WEIGHT_DECAY = 0.0001
 
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
@@ -59,7 +68,7 @@ CRITIC_LAYER_2 = 512
 CRITIC_LR = 0.00003
 CRITIC_LR_STEP_SIZE = 96000
 CRITIC_LR_GAMMA = 0.363
-
+CRITIC_LR_WEIGHT_DECAY = 0.0001
 
 START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.87
@@ -164,11 +173,11 @@ class DDPG(object):
 
             self.actor = Actor(state_dim, action_dim).to(self.device)
             self.actor_target = Actor(state_dim, action_dim).to(self.device)
-            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=ACTOR_LR)
+            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=ACTOR_LR, weight_decay=ACTOR_LR_WEIGHT_DECAY)
 
             self.critic = Critic(state_dim, action_dim).to(self.device)
             self.critic_target = Critic(state_dim, action_dim).to(self.device)
-            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=CRITIC_LR)
+            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=CRITIC_LR, weight_decay=CRITIC_LR_WEIGHT_DECAY)
 
             self.hard_update(self.actor_target, self.actor)
             self.hard_update(self.critic_target, self.critic)
@@ -190,11 +199,11 @@ class DDPG(object):
 
             self.actor = Actor(state_dim, action_dim).to(self.device)
             self.actor_target = Actor(state_dim, action_dim).to(self.device)
-            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=self.actor_lr)
+            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=self.actor_lr, weight_decay=config.actor_lr_weight_decay)
 
             self.critic = Critic(state_dim, action_dim).to(self.device)
             self.critic_target = Critic(state_dim, action_dim).to(self.device)
-            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr)
+            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr, weight_decay=config.critic_lr_weight_decay)
 
             self.hard_update(self.actor_target, self.actor)
             self.hard_update(self.critic_target, self.critic)
@@ -283,6 +292,28 @@ class DDPG(object):
         self.critic_lr_scheduler.step()
         self.actor_lr_scheduler.step()
         return critic_loss.item(), actor_loss.item()
+    def evaluate(self, venv, reward_func, eval_episodes=10):
+        avg_reward = 0
+        achieve_rate = 0
+        for i in range(eval_episodes):
+            state = venv.reset()
+            state = torch.FloatTensor(state).to(self.device)
+            ep_reward = 0
+            for step in range(100):
+                action = self.actor(state).cpu().data.numpy().flatten()
+                next_state, collision, done, achieved_goal, dist_traveled = venv.step(action, step)
+                reward, tw, dw, aw = reward_func(done, collision, achieved_goal, action[0], action[1],
+                                                     next_state[5])
+                ep_reward += reward
+                state = torch.FloatTensor(next_state).to(self.device)
+                if done:
+                    break
+                if achieved_goal:
+                    achieve_rate += 1
+            avg_reward += ep_reward
+        avg_reward = avg_reward / eval_episodes
+        return avg_reward, achieve_rate*10
+
 
 class TrainingExecutor:
     def __init__(self, map):
@@ -401,10 +432,15 @@ class TrainingExecutor:
                     visualizer.update(episode_x, episode_y, action_q)
                 if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
                     self.save(episode)
+                if EVAL_FREQ != -1 and episode+1 % EVAL_FREQ == 0:
+                    eval_rew, eval_ac = self.ddpg.evaluate(env, self.get_reward)
+                else:
+                    eval_rew = -1
+                    eval_ac = -1
 
                 rewards.append(episode_reward)
                 print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
-                self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide, sum(episode_closs)/len(episode_closs), sum(episode_aloss)/len(episode_aloss))
+                self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide, sum(episode_closs)/len(episode_closs), sum(episode_aloss)/len(episode_aloss), eval_rew, eval_ac)
         else:
             noise = OUNoise(ACTION_DIM, max_sigma=config.start_noise, min_sigma=END_NOISE, decay_period=config.noise_decay_steps)
             rewards = []
@@ -547,8 +583,8 @@ class TrainingExecutor:
 
 
     def save(self, episode, filename=FILE_NAME, directory=FILE_LOCATION):
-        if not os.path.exists(directory + "\\" + filename):
-            os.mkdir(directory + "\\" + filename)
+        if not os.path.exists(directory + "/" + filename):
+            os.mkdir(directory + "/" + filename)
         if self.plotter is not None:
             statistics = self.plotter.save()
         else:
