@@ -296,7 +296,7 @@ class DDPG(object):
         avg_reward = 0
         achieve_rate = 0
         for i in range(eval_episodes):
-            state = venv.reset()
+            state, startdist = venv.reset()
             state = torch.FloatTensor(state).to(self.device)
             ep_reward = 0
             for step in range(100):
@@ -360,7 +360,7 @@ class TrainingExecutor:
         if config is None:
             noise = OUNoise(ACTION_DIM, max_sigma=START_NOISE, min_sigma=END_NOISE, decay_period=NOISE_DECAY_STEPS)
             rewards = []
-            self.logger = wandb.init(project="autonav", config=LOGGER_CONFIG, name="cuda-v1 release candidate")
+            self.logger = wandb.init(project="autonav", config=LOGGER_CONFIG, name="cuda-v1 test commit")
             if self.plotter is None:
                 self.plotter = Model_Plotter(num_episodes, plotter_display)
             visualizer = None
@@ -432,7 +432,7 @@ class TrainingExecutor:
                     visualizer.update(episode_x, episode_y, action_q)
                 if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
                     self.save(episode)
-                if EVAL_FREQ != -1 and episode+1 % EVAL_FREQ == 0:
+                if EVAL_FREQ != -1 and (episode+1) % EVAL_FREQ == 0:
                     eval_rew, eval_ac = self.ddpg.evaluate(env, self.get_reward)
                 else:
                     eval_rew = -1
@@ -517,12 +517,17 @@ class TrainingExecutor:
                     visualizer.update(episode_x, episode_y, action_q)
                 if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
                     self.save(episode)
+                if EVAL_FREQ != -1 and (episode+1) % EVAL_FREQ == 0:
+                    eval_rew, eval_ac = self.ddpg.evaluate(env, self.get_reward)
+                else:
+                    eval_rew = -1
+                    eval_ac = -1
 
                 rewards.append(episode_reward)
                 print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
                 self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw,
                                     episode_achieve, episode_collide, sum(episode_closs) / len(episode_closs),
-                                    sum(episode_aloss) / len(episode_aloss))
+                                    sum(episode_aloss) / len(episode_aloss), eval_rew, eval_ac)
         wandb.finish()
 
     def test(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0):
