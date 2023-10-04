@@ -353,7 +353,7 @@ class TrainingExecutor:
                 return COLLISION_WEIGHT/2, 1, 1, 1
         if collision:
             return COLLISION_WEIGHT, 1, 1, 1
-        return (vel)*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT+TIME_WEIGHT, ((vel)*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
+        return 2*(vel-0.5)*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT+TIME_WEIGHT, (2*(vel-0.5)*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
 
 
     def train(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0, config=None, map=None, plotter_display=True):
