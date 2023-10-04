@@ -241,13 +241,13 @@ class Model_Plotter():
         total = np.zeros(episode + 1)
         for i in range(episode+1):
             if self.achieve_history[i] == 1:
-                total[i] = 1
+                total[i] = 0
                 break
             elif self.collision_history[i] == 1:
-                total[i] = 1
+                total[i] = 0
                 break
             else:
-                total[i] = 0
+                total[i] = 1
 
         self.achieve_chance_y.put(episode, achieve_prob)
         self.collision_chance_y.put(episode, collision_prob)
@@ -292,12 +292,14 @@ class Model_Plotter():
             print("Error in setting limits")
 
 
-        if eval_rew != -1 and eval_ac != -1:
+        if eval_rew == -1 and eval_ac == -1:
             wandb_params = {
                 "actor_loss" : self.a_loss_y[episode],
                 "critic_loss" : self.c_loss_y[episode],
                 "avg_reward" : self.avg_y[episode],
                 "achieve_rate" : self.achieve_chance_y[episode],
+                "none_rate" : self.none_chance_y[episode],
+                "collision_rate" : self.collision_chance_y[episode],
                 "anglevel_reward" : self.dist_weight_y[episode],
                 "vel_reward" : self.time_weight_y[episode]
             }
@@ -307,10 +309,12 @@ class Model_Plotter():
                 "critic_loss" : self.c_loss_y[episode],
                 "avg_reward" : self.avg_y[episode],
                 "achieve_rate" : self.achieve_chance_y[episode],
+                "none_rate": self.none_chance_y[episode],
+                "collision_rate": self.collision_chance_y[episode],
                 "anglevel_reward" : self.dist_weight_y[episode],
                 "vel_reward" : self.time_weight_y[episode],
                 "eval_reward" : eval_rew,
-                "eval_action" : eval_ac
+                "eval_achieve_chance" : eval_ac
             }
         wandb.log(wandb_params)
 

@@ -33,7 +33,7 @@ while True:
     inp = inp.upper()
     if inp == "T":
         #train(DRL_VENV)
-        te.train(DRL_VENV, plotter_display=False)
+        te.train(DRL_VENV, plotter_display=True)
     elif inp == "L":
         e = te.load()
         te.train(DRL_VENV, start_episode=e, plotter_display=False)
