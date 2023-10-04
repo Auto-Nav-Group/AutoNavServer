@@ -30,7 +30,7 @@ else:
     exit()
 FILE_NAME = "SampleModel"
 SAVE_FREQ = 4999
-EVAL_FREQ = 10
+EVAL_FREQ = -1
 VISUALIZER_ENABLED = True
 SEPERATE_NORM_MEM = True
 
@@ -44,12 +44,12 @@ FINISH_WEIGHT = 100
 DIST_WEIGHT = 0
 PASS_DIST_WEIGHT = 0
 CHALLENGE_WEIGHT = 0.01
-CHALLENGE_EXP_BASE = 0.0125
+CHALLENGE_EXP_BASE = 1
 ANGLE_WEIGHT = 0#-2
 SPEED_WEIGHT = 0.5
 ANGLE_SPEED_WEIGHT = -0.5#-0.5
 MIN_DIST_WEIGHT = -0.5
-WALL_DIST = 0.5
+WALL_DIST = 0
 
 STATE_DIM = 9
 ACTION_DIM = 2
@@ -71,7 +71,7 @@ CRITIC_LR_GAMMA = 0.363
 CRITIC_LR_WEIGHT_DECAY = 0.0001
 
 START_WEIGHT_THRESHOLD = 3e-3
-GAMMA = 0.87
+GAMMA = 0.99
 TAU = 9e-3
 
 START_NOISE = 0.9
@@ -259,10 +259,7 @@ class DDPG(object):
         QVal = self.critic((states, actions))
         next_actions = self.actor_target.forward(next_states)
         next_Q = self.critic_target((next_states, next_actions.detach()))
-        if self.config is None:
-            QPrime = rewards + GAMMA * next_Q
-        else:
-            QPrime = rewards + self.config.gamma * next_Q
+        QPrime = rewards + GAMMA * next_Q
         critic_loss = self.criterion(QVal, QPrime)
         critic_loss = critic_loss.float()
 
@@ -353,7 +350,7 @@ class TrainingExecutor:
                 return COLLISION_WEIGHT/2, 1, 1, 1
         if collision:
             return COLLISION_WEIGHT, 1, 1, 1
-        return 2*(vel-0.5)*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT+TIME_WEIGHT, (2*(vel-0.5)*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
+        return (vel)*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT+TIME_WEIGHT, (()*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
 
 
     def train(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0, config=None, map=None, plotter_display=True):
