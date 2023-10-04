@@ -228,13 +228,13 @@ class Model_Plotter():
                 if len(recent_achieves) == 0:
                     break
                 elif recent_achieves[i] == 1:
-                    total[i] = 1
+                    total[i] = 0
                     break
                 elif recent_collisions[i] == 1:
-                    total[i] = 1
+                    total[i] = 0
                     break
                 else:
-                    total[i] = 0
+                    total[i] = 1
 
 
             none_prob = 100-sum(total)
