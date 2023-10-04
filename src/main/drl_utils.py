@@ -251,7 +251,7 @@ class Model_Plotter():
 
         self.achieve_chance_y.put(episode, achieve_prob)
         self.collision_chance_y.put(episode, collision_prob)
-        self.none_chance_y.put(episode, 100*sum(total)/(episode+1))
+        self.none_chance_y.put(episode, 100-achieve_prob-collision_prob)
 
         self.c_loss_y.put(episode, c_loss_y)
         self.a_loss_y.put(episode, a_loss_y)
