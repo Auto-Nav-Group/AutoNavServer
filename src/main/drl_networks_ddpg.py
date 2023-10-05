@@ -229,11 +229,11 @@ class DDPG(object):
 
     def get_action(self, state):
         action = self.actor.forward(state)
-        return action
+        return torch.FloatTensor(action.reshape(1, -1)).to(self.device)
 
     def get_action_with_noise(self, state, noise, step):
         action = self.actor.forward_with_noise(state, noise, step)
-        return action
+        return torch.FloatTensor(action.reshape(1, -1)).to(self.device)
     
     def normalize_state(self, state):
         return self.normalizer.NormalizeState(state)
