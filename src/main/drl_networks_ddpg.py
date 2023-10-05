@@ -167,6 +167,7 @@ class DDPG(object):
 
         self.device = device
 
+        self.update_steps = 0
         if config is None:
             self.config = None
             self.actor_lr = ACTOR_LR
@@ -271,33 +272,40 @@ class DDPG(object):
         QVal = self.critic((states, actions))
         QVal2 = self.critic2((states, actions))
         next_Q1 = self.critic_target((next_states, next_actions.detach()))
-        next_Q2 = self.critic2_target((next_States, next_actions.detach()))
+        next_Q2 = self.critic2_target((next_states, next_actions.detach()))
         next_Q_min = torch.min(next_Q1, next_Q2)
         QPrime = rewards + GAMMA * next_Q_min
         
-        critic_loss1 = self.criterion(QVal, QPrime)
-        critic_loss1 = critic_loss.float()
-        critic_loss2 = self.criterion(QVal2, QPrime)
-        critic_loss2 = critic_loss2.float()
+        critic1_loss = self.criterion(QVal, QPrime)
+        critic1_loss = critic1_loss.float()
+        critic2_loss = self.criterion(QVal2, QPrime)
+        critic2_loss = critic2_loss.float()
 
-        self.critic_optim.zero_grad()
-        critic_loss.backward()
-        self.critic_optim.step()
+        self.critic1_optim.zero_grad()
+        critic1_loss.backward()
+        self.critic1_optim.step()
+
+        self.critic2_optim.zero_grad()
+        critic2_loss.backward()
+        self.critic2_optim.step()
 
         #Actor loss
         actor_losses = self.critic.forward((states, self.actor.forward(states)))
         actor_loss = -actor_losses.mean()
         #Update networks
-        self.actor_optim.zero_grad()
-        actor_loss.backward()
-        self.actor_optim.step()
+        if self.update_steps % POLICY_FREQ == 0:
+            self.actor_optim.zero_grad()
+            actor_loss.backward()
+            self.actor_optim.step()
 
         if self.config is None:
             self.soft_update(self.actor_target, self.actor, TAU)
             self.soft_update(self.critic_target, self.critic, TAU)
+            self.soft_update(self.critic2_target, self.critic, TAU)
         else:
             self.soft_update(self.actor_target, self.actor, self.config.tau)
             self.soft_update(self.critic_target, self.critic, self.config.tau)
+            self.soft_update(self.critic2_target, self.critic, self.config.tau)
 
         clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
         clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
@@ -305,7 +313,8 @@ class DDPG(object):
 
         self.critic_lr_scheduler.step()
         self.actor_lr_scheduler.step()
-        return critic_loss.item(), actor_loss.item()
+        self.update_steps += 1
+        return (critic2_loss.item()+critic1_loss.item())/2, actor_loss.item()
     def evaluate(self, venv, reward_func, eval_episodes=10):
         avg_reward = 0
         achieve_rate = 0
