@@ -31,6 +31,7 @@ else:
 FILE_NAME = "SampleModel"
 SAVE_FREQ = 4999
 EVAL_FREQ = -1
+POLICY_FREQ = 2
 VISUALIZER_ENABLED = True
 SEPERATE_NORM_MEM = True
 
@@ -39,7 +40,7 @@ MAX_TIMESTEP = 100
 BATCH_SIZE = 512
 
 COLLISION_WEIGHT = -100
-TIME_WEIGHT = 0#-6
+TIME_WEIGHT = -1#-6
 FINISH_WEIGHT = 100
 DIST_WEIGHT = 0
 PASS_DIST_WEIGHT = 0
@@ -47,7 +48,7 @@ CHALLENGE_WEIGHT = 0.01
 CHALLENGE_EXP_BASE = 1
 ANGLE_WEIGHT = 0#-2
 SPEED_WEIGHT = 0.5
-ANGLE_SPEED_WEIGHT = -0.5#-0.5
+ANGLE_SPEED_WEIGHT = 0#-0.5
 MIN_DIST_WEIGHT = -0.5
 WALL_DIST = 0
 
@@ -71,7 +72,7 @@ CRITIC_LR_GAMMA = 0.363
 CRITIC_LR_WEIGHT_DECAY = 0.0001
 
 START_WEIGHT_THRESHOLD = 3e-3
-GAMMA = 0.99
+GAMMA = 1
 TAU = 9e-3
 
 START_NOISE = 0.9
@@ -160,7 +161,7 @@ class Critic(nn.Module):
         return self.l3(q)
 
 class DDPG(object):
-    def __init__(self, state_dim, action_dim, device, map, config=None):
+    def __init__(self, state_dim, action_dim, device, map, config=None, policy_freq=POLICY_FREQ):
         self.state_dim = state_dim
         self.action_dim = action_dim
 
@@ -178,6 +179,10 @@ class DDPG(object):
             self.critic = Critic(state_dim, action_dim).to(self.device)
             self.critic_target = Critic(state_dim, action_dim).to(self.device)
             self.critic_optim = optim.AdamW(self.critic.parameters(), lr=CRITIC_LR, weight_decay=CRITIC_LR_WEIGHT_DECAY)
+
+            self.critic2 = Critic(state_Dim, action_dim).to(self.device)
+            self.critic2_target = Critic(state_dim, action_dim).to(self.device)
+            self.critic2_optim = optim.AdamW(self.critic2.parameters(), lr=CRITIC_LR, weight_decay=CRITIC_LR_WEIGHT_DECAY)
 
             self.hard_update(self.actor_target, self.actor)
             self.hard_update(self.critic_target, self.critic)
@@ -204,6 +209,10 @@ class DDPG(object):
             self.critic = Critic(state_dim, action_dim).to(self.device)
             self.critic_target = Critic(state_dim, action_dim).to(self.device)
             self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr, weight_decay=config.critic_lr_weight_decay)
+            
+            self.critic2 = Critic(state_Dim, action_dim).to(self.device)
+            self.critic2_target = Critic(state_dim, action_dim).to(self.device)
+            self.critic2_optim = optim.AdamW(self.critic2.parameters(), lr=CRITIC_LR, weight_decay=CRITIC_LR_WEIGHT_DECAY)
 
             self.hard_update(self.actor_target, self.actor)
             self.hard_update(self.critic_target, self.critic)
@@ -242,7 +251,7 @@ class DDPG(object):
         self.mem.push(state, action, next_state, reward)
         self.norm_mem.push(self.normalize_state(state), action, self.normalize_state(next_state), reward)
 
-    def update_parameters(self, batch_size):
+    def update_parameters(self, batch_size, noise, step):
         if len(self.mem) < batch_size:
             return 0,0
         if SEPERATE_NORM_MEM:
@@ -255,13 +264,21 @@ class DDPG(object):
             next_states = torch.stack(self.normalizer.NormalizeStates(self.mem, batch.next_state)).to(self.device).float()
         actions = torch.stack(batch.action).to(self.device).float()
         rewards = torch.stack(batch.reward).to(self.device).float()
+        with torch.no_grad():
+            next_actions = self.actor_target.forward_with_noise(state, noise, step)
+            next_actions = torch.clamp(next_actions, -1, 1)
         #Critic loss
         QVal = self.critic((states, actions))
-        next_actions = self.actor_target.forward(next_states)
-        next_Q = self.critic_target((next_states, next_actions.detach()))
-        QPrime = rewards + GAMMA * next_Q
-        critic_loss = self.criterion(QVal, QPrime)
-        critic_loss = critic_loss.float()
+        QVal2 = self.critic2((states, actions))
+        next_Q1 = self.critic_target((next_states, next_actions.detach()))
+        next_Q2 = self.critic2_target((next_States, next_actions.detach()))
+        next_Q_min = torch.min(next_Q1, next_Q2)
+        QPrime = rewards + GAMMA * next_Q_min
+        
+        critic_loss1 = self.criterion(QVal, QPrime)
+        critic_loss1 = critic_loss.float()
+        critic_loss2 = self.criterion(QVal2, QPrime)
+        critic_loss2 = critic_loss2.float()
 
         self.critic_optim.zero_grad()
         critic_loss.backward()
