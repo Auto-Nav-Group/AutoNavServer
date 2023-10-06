@@ -29,18 +29,18 @@ else:
     print("SYSTEM NOT SUPPORTED. EXITING")
     exit()
 FILE_NAME = "SampleModel"
-SAVE_FREQ = 4999
+SAVE_FREQ = 15999
 EVAL_FREQ = -1
 POLICY_FREQ = 2
 VISUALIZER_ENABLED = True
 SEPERATE_NORM_MEM = True
 
-EPISODES = 5000
-MAX_TIMESTEP = 100
+EPISODES = 16000
+MAX_TIMESTEP = 500
 BATCH_SIZE = 512
 
 COLLISION_WEIGHT = -100
-TIME_WEIGHT = -1#-6
+TIME_WEIGHT = 0#-6
 FINISH_WEIGHT = 100
 DIST_WEIGHT = 0
 PASS_DIST_WEIGHT = 0
@@ -48,7 +48,7 @@ CHALLENGE_WEIGHT = 0.01
 CHALLENGE_EXP_BASE = 1
 ANGLE_WEIGHT = 0#-2
 SPEED_WEIGHT = 0.5
-ANGLE_SPEED_WEIGHT = 0#-0.5
+ANGLE_SPEED_WEIGHT = -0.5#-0.5
 MIN_DIST_WEIGHT = -0.5
 WALL_DIST = 0
 
@@ -59,7 +59,7 @@ ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 512
 
 ACTOR_LR = 0.000001
-ACTOR_LR_STEP_SIZE = 180000
+ACTOR_LR_STEP_SIZE = 5e6
 ACTOR_LR_GAMMA = 0.452
 ACTOR_LR_WEIGHT_DECAY = 0.0001
 
@@ -67,17 +67,17 @@ CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
 CRITIC_LR = 0.00003
-CRITIC_LR_STEP_SIZE = 96000
+CRITIC_LR_STEP_SIZE = 5e6
 CRITIC_LR_GAMMA = 0.363
 CRITIC_LR_WEIGHT_DECAY = 0.0001
 
 START_WEIGHT_THRESHOLD = 3e-3
-GAMMA = 1
-TAU = 9e-3
+GAMMA = 0.99999
+TAU = 0.005
 
-START_NOISE = 0.9
-END_NOISE = 0
-NOISE_DECAY_STEPS = 175000
+START_NOISE = 1
+END_NOISE = 0.1
+NOISE_DECAY_STEPS = 500000
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -181,7 +181,7 @@ class DDPG(object):
             self.critic_target = Critic(state_dim, action_dim).to(self.device)
             self.critic_optim = optim.AdamW(self.critic.parameters(), lr=CRITIC_LR, weight_decay=CRITIC_LR_WEIGHT_DECAY)
 
-            self.critic2 = Critic(state_Dim, action_dim).to(self.device)
+            self.critic2 = Critic(state_dim, action_dim).to(self.device)
             self.critic2_target = Critic(state_dim, action_dim).to(self.device)
             self.critic2_optim = optim.AdamW(self.critic2.parameters(), lr=CRITIC_LR, weight_decay=CRITIC_LR_WEIGHT_DECAY)
 
@@ -211,7 +211,7 @@ class DDPG(object):
             self.critic_target = Critic(state_dim, action_dim).to(self.device)
             self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr, weight_decay=config.critic_lr_weight_decay)
             
-            self.critic2 = Critic(state_Dim, action_dim).to(self.device)
+            self.critic2 = Critic(state_dim, action_dim).to(self.device)
             self.critic2_target = Critic(state_dim, action_dim).to(self.device)
             self.critic2_optim = optim.AdamW(self.critic2.parameters(), lr=CRITIC_LR, weight_decay=CRITIC_LR_WEIGHT_DECAY)
 
@@ -239,11 +239,11 @@ class DDPG(object):
 
     def get_action(self, state):
         action = self.actor.forward(state)
-        return torch.FloatTensor(action.reshape(1, -1)).to(self.device)
+        return action#torch.FloatTensor(action.reshape(1, -1)).to(self.device)
 
     def get_action_with_noise(self, state, noise, step):
         action = self.actor.forward_with_noise(state, noise, step)
-        return torch.FloatTensor(action.reshape(1, -1)).to(self.device)
+        return action#torch.FloatTensor(action.reshape(1, -1)).to(self.device)
     
     def normalize_state(self, state):
         return self.normalizer.NormalizeState(state)
@@ -266,7 +266,7 @@ class DDPG(object):
         actions = torch.stack(batch.action).to(self.device).float()
         rewards = torch.stack(batch.reward).to(self.device).float()
         with torch.no_grad():
-            next_actions = self.actor_target.forward_with_noise(state, noise, step)
+            next_actions = self.actor_target.forward_with_noise(states, noise, step)
             next_actions = torch.clamp(next_actions, -1, 1)
         #Critic loss
         QVal = self.critic((states, actions))
@@ -281,12 +281,12 @@ class DDPG(object):
         critic2_loss = self.criterion(QVal2, QPrime)
         critic2_loss = critic2_loss.float()
 
-        self.critic1_optim.zero_grad()
-        critic1_loss.backward()
-        self.critic1_optim.step()
+        self.critic_optim.zero_grad()
+        critic1_loss.backward(retain_graph=True)
+        self.critic_optim.step()
 
         self.critic2_optim.zero_grad()
-        critic2_loss.backward()
+        critic2_loss.backward(retain_graph=True)
         self.critic2_optim.step()
 
         #Actor loss
@@ -372,8 +372,6 @@ class TrainingExecutor:
         if done:
             if achieved_goal:
                 return FINISH_WEIGHT, 1, 1, 1
-            else:
-                return COLLISION_WEIGHT/2, 1, 1, 1
         if collision:
             return COLLISION_WEIGHT, 1, 1, 1
         return (vel)*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT+TIME_WEIGHT, ((vel)*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
@@ -434,7 +432,7 @@ class TrainingExecutor:
                     episode_y.append(next_state[2])
                     state = torch.FloatTensor(next_state).to(DEVICE)
 
-                    c_loss, a_loss = self.ddpg.update_parameters(batch_size)
+                    c_loss, a_loss = self.ddpg.update_parameters(batch_size, noise, total_steps)
                     episode_closs.append(c_loss)
                     episode_aloss.append(a_loss)
 
@@ -519,7 +517,7 @@ class TrainingExecutor:
                     episode_y.append(next_state[2])
                     state = torch.FloatTensor(next_state).to(DEVICE)
 
-                    c_loss, a_loss = self.ddpg.update_parameters(BATCH_SIZE)
+                    c_loss, a_loss = self.ddpg.update_parameters(batch_size, noise, total_steps)
                     episode_closs.append(c_loss)
                     episode_aloss.append(a_loss)
 
