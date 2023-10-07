@@ -198,8 +198,8 @@ class DDPG(object):
 
             #self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
             #self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
-            self.actor_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=0.1, patience=5, factor=ACTOR_LR_GAMMA)
-            self.critic_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=0.1, patience=5, factor=CRITIC_LR_GAMMA)
+            self.actor_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=ACTOR_LR_GAMMA)
+            self.critic_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=CRITIC_LR_GAMMA)
         else:
             self.config = config
             self.actor_lr = config.actor_lr
@@ -230,8 +230,8 @@ class DDPG(object):
 
             #self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
             #self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
-            self.actor_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=0.1, patience=5, factor=config.actor_lr_gamma)
-            self.critic_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=0.1, patience=5, factor=config.critic_lr_gamma)
+            self.actor_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=config.actor_lr_gamma)
+            self.critic_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=config.critic_lr_gamma)
 
     def hard_update(self, target, source):
         for target_param, param in zip(target.parameters(), source.parameters()):
