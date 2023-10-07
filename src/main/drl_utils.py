@@ -374,6 +374,9 @@ class Model_Plotter():
         else:
             return 0
 
+    def get_achieve_chance(self, episode):
+        return self.achieve_chance_y[episode]
+
 class Model_Visualizer:
     def __init__(self, sizex, sizey):
         plt.ion()

@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from torch.nn.utils import clip_grad_norm_
 from torch.nn import init
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 from drl_utils import ReplayMemory, Transition, NumpyArrayEncoder, Model_Plotter, OUNoise, Model_Visualizer, Normalizer
 from drl_venv import MAX_SPEED, TIME_DELTA
 from IPython import display
@@ -196,8 +196,10 @@ class DDPG(object):
 
             self.normalizer = Normalizer(map)
 
-            self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=ACTOR_LR_STEP_SIZE, gamma=ACTOR_LR_GAMMA)
-            self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=CRITIC_LR_STEP_SIZE, gamma=CRITIC_LR_GAMMA)
+            #self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
+            #self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
+            self.actor_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=0.1, patience=5, factor=ACTOR_LR_GAMMA)
+            self.critic_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=0.1, patience=5, factor=CRITIC_LR_GAMMA)
         else:
             self.config = config
             self.actor_lr = config.actor_lr
@@ -226,8 +228,10 @@ class DDPG(object):
 
             self.normalizer = Normalizer(map)
 
-            self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
-            self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
+            #self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
+            #self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
+            self.actor_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=0.1, patience=5, factor=config.actor_lr_gamma)
+            self.critic_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=0.1, patience=5, factor=config.critic_lr_gamma)
 
     def hard_update(self, target, source):
         for target_param, param in zip(target.parameters(), source.parameters()):
@@ -252,7 +256,7 @@ class DDPG(object):
         self.mem.push(state, action, next_state, reward)
         self.norm_mem.push(self.normalize_state(state), action, self.normalize_state(next_state), reward)
 
-    def update_parameters(self, batch_size, noise, step):
+    def update_parameters(self, batch_size, noise, step, achieve_chance):
         if len(self.mem) < batch_size:
             return 0,0
         if SEPERATE_NORM_MEM:
@@ -311,8 +315,10 @@ class DDPG(object):
         clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
 
 
-        self.critic_lr_scheduler.step()
-        self.actor_lr_scheduler.step()
+        #self.critic_lr_scheduler.step()
+        #self.actor_lr_scheduler.step()
+        self.critic_lr_scheduler.step(achieve_chance)
+        self.actor_lr_scheduler.step(achieve_chance)
         self.update_steps += 1
         return (critic2_loss.item()+critic1_loss.item())/2, actor_loss.item()
     def evaluate(self, venv, reward_func, eval_episodes=10):
@@ -432,7 +438,7 @@ class TrainingExecutor:
                     episode_y.append(next_state[2])
                     state = torch.FloatTensor(next_state).to(DEVICE)
 
-                    c_loss, a_loss = self.ddpg.update_parameters(batch_size, noise, total_steps)
+                    c_loss, a_loss = self.ddpg.update_parameters(batch_size, noise, total_steps, self.plotter.get_achieve_chance(episode))
                     episode_closs.append(c_loss)
                     episode_aloss.append(a_loss)
 
@@ -517,7 +523,7 @@ class TrainingExecutor:
                     episode_y.append(next_state[2])
                     state = torch.FloatTensor(next_state).to(DEVICE)
 
-                    c_loss, a_loss = self.ddpg.update_parameters(batch_size, noise, total_steps)
+                    c_loss, a_loss = self.ddpg.update_parameters(batch_size, noise, total_steps, self.plotter.get_achieve_chance(episode))
                     episode_closs.append(c_loss)
                     episode_aloss.append(a_loss)
 
