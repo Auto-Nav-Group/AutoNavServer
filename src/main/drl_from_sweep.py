@@ -34,4 +34,4 @@ wandb.run.name = config.name
 
 TrainingExecutor = TrainingExecutor(mapobj)
 
-TrainingExecutor.train(DRL_VENV, config=config, num_episodes=LEN, map = mapobj, plotter_display=False)
+TrainingExecutor.train(DRL_VENV, config=config, num_episodes=LEN, inpmap= mapobj, plotter_display=False)

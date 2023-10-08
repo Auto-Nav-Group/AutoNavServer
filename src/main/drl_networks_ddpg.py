@@ -5,7 +5,7 @@ import os
 import sys
 import json
 import wandb
-import torch.nn.functional as F
+import torch.nn.functional as f
 from torch.nn.utils import clip_grad_norm_
 from torch.nn import init
 from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
@@ -27,7 +27,7 @@ FILE_NAME = "SampleModel"
 SAVE_FREQ = 15999
 EVAL_FREQ = -1
 POLICY_FREQ = 2
-VISUALIZER_ENABLED = True
+VISUALIZER_ENABLED = False
 
 EPISODES = 16000
 MAX_TIMESTEP = 500
@@ -118,17 +118,17 @@ class Actor(nn.Module):
 
     def forward(self, state):
         state = state.to(torch.float32)
-        a = F.relu(self.l1(state))
-        a = F.relu(self.l2(a))
-        a = F.relu(self.l3(a))
+        a = f.relu(self.l1(state))
+        a = f.relu(self.l2(a))
+        a = f.relu(self.l3(a))
         a = torch.tanh(a)
         return a
 
     def forward_with_noise(self, state, noise, step):
         state = state.to(torch.float32)
-        a = F.relu(self.l1(state))
-        a = F.relu(self.l2(a))
-        a = F.relu(self.l3(a))
+        a = f.relu(self.l1(state))
+        a = f.relu(self.l2(a))
+        a = f.relu(self.l3(a))
         a = noise.get_action(a, step)
         a = torch.tanh(torch.FloatTensor(a).to(DEVICE))
         return a
@@ -155,9 +155,10 @@ class Critic(nn.Module):
         return self.l3(q)
 
 class TD3(object):
-    def __init__(self, state_dim, action_dim, device, map, config=None, policy_freq=POLICY_FREQ):
+    def __init__(self, state_dim, action_dim, device, inpmap, config=None, policy_freq=POLICY_FREQ):
         self.state_dim = state_dim
         self.action_dim = action_dim
+        self.policy_freq = policy_freq
 
         self.device = device
 
@@ -185,7 +186,7 @@ class TD3(object):
             self.norm_mem = ReplayMemory(10000000)
             self.criterion = nn.MSELoss()
 
-            self.normalizer = Normalizer(map)
+            self.normalizer = Normalizer(inpmap)
 
             #self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
             #self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
@@ -214,18 +215,20 @@ class TD3(object):
             self.norm_mem = ReplayMemory(10000000)
             self.criterion = nn.MSELoss()
 
-            self.normalizer = Normalizer(map)
+            self.normalizer = Normalizer(inpmap)
 
             #self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
             #self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
             self.actor_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=config.actor_lr_gamma)
             self.critic_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=config.critic_lr_gamma)
 
-    def hard_update(self, target, source):
+    @staticmethod
+    def hard_update(target, source):
         for target_param, param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_(param.data)
 
-    def soft_update(self, target, source, tau):
+    @staticmethod
+    def soft_update(target, source, tau):
         for target_param, param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
 
@@ -279,7 +282,7 @@ class TD3(object):
         actor_losses = self.critic.forward((states, self.actor.forward(states)))
         actor_loss = -actor_losses.mean()
         #Update networks
-        if self.update_steps % POLICY_FREQ == 0:
+        if self.update_steps % self.policy_freq == 0:
             self.actor_optim.zero_grad()
             actor_loss.backward()
             self.actor_optim.step()
@@ -327,45 +330,23 @@ class TD3(object):
 
 
 class TrainingExecutor:
-    def __init__(self, map):
-        self.network = TD3(STATE_DIM, ACTION_DIM, DEVICE, map)
+    def __init__(self, inpmap):
+        self.network = TD3(STATE_DIM, ACTION_DIM, DEVICE, inpmap)
         self.plotter = None
         self.logger = None
 
-    def get_reward(self, done, collision, achieved_goal, anglevel, vel, min_dist, config=None):
-        '''
-        dist_weight = delta_dist * DIST_WEIGHT
-        angle_weight = (abs(angle) / np.pi) * ANGLE_WEIGHT
-        # time_weight = TIME_WEIGHT*(initdistance/MAX_SPEED-timestep/TIME_DELTA)
-        time_weight = 0
-        speed_weight = abs(vel) * SPEED_WEIGHT
-        total_weight = dist_weight + angle_weight + time_weight + speed_weight
-        if (ovr_dist > initdistance):
-            total_weight += PASS_DIST_WEIGHT
-        if initdistance / MAX_SPEED < timestep * TIME_DELTA:
-            total_weight += TIME_WEIGHT
-            time_weight = TIME_WEIGHT
-        if done:
-            if achieved_goal:
-                initangle = abs(initangle) / np.pi
-                dist_challenge = CHALLENGE_EXP_BASE ** initdistance
-                angle_challenge = CHALLENGE_EXP_BASE ** initangle
-                return FINISH_WEIGHT + time_weight + dist_challenge * CHALLENGE_WEIGHT + angle_challenge * CHALLENGE_WEIGHT, time_weight, dist_weight, angle_weight
-            elif collision is not True:
-                return COLLISION_WEIGHT + time_weight, time_weight, dist_weight, angle_weight
-        if collision is True:
-            return COLLISION_WEIGHT + time_weight, time_weight, dist_weight, angle_weight
-        return total_weight, time_weight, dist_weight, angle_weight'''
+    @staticmethod
+    def get_reward(done, collision, achieved_goal, anglevel, vel, min_dist):
         d = lambda x: 1-x if x<1 else 0
         if done:
             if achieved_goal:
                 return FINISH_WEIGHT, 1, 1, 1
         if collision:
             return COLLISION_WEIGHT, 1, 1, 1
-        return (vel)*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT+TIME_WEIGHT, ((vel)*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
+        return vel*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT+TIME_WEIGHT, (vel*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
 
 
-    def train(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0, config=None, map=None, plotter_display=True):
+    def train(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0, config=None, inpmap=None, plotter_display=True):
         if config is None:
             noise = OUNoise(ACTION_DIM, max_sigma=START_NOISE, min_sigma=END_NOISE, decay_period=NOISE_DECAY_STEPS)
             rewards = []
@@ -458,7 +439,7 @@ class TrainingExecutor:
             visualizer = None
             if VISUALIZER_ENABLED:
                 visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
-            self.network = TD3(STATE_DIM, ACTION_DIM, DEVICE, map, config=config)
+            self.network = TD3(STATE_DIM, ACTION_DIM, DEVICE, inpmap, config=config)
             total_steps = 0
             for episode in range(start_episode, num_episodes):
                 state, dist = env.reset()

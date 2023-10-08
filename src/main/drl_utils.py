@@ -1,7 +1,6 @@
 import math
 import wandb
 import numpy as np
-import random
 import json
 import torch
 import matplotlib.pyplot as plt
@@ -106,9 +105,9 @@ class Model_Plotter():
     def __init__(
             self,
             episodes,
-            plotter_display
+            plotter_display=True
     ):
-        if plotter_display:
+        if plotter_display is True:
             plt.ion()
         self.prev_total_reward = 0
         self.avg_x = np.arange(episodes)
@@ -137,23 +136,24 @@ class Model_Plotter():
         self.a_loss_x = np.arange(episodes)
         self.a_loss_y = np.zeros(episodes)
 
-        self.fig, self.ax = plt.subplots(7, figsize=(10,6))
-        self.fig.suptitle("Training Metrics")
-        self.avg_line, = self.ax[0].plot(self.avg_x, self.avg_y, label="Average Reward", color="blue")
-        self.dist_line, = self.ax[1].plot(self.dist_x, self.dist_y, label="Distance Reward", color="red")
-        self.total_reward_line, = self.ax[2].plot(self.total_reward_x, self.total_reward_y, label="Total Reward", color="green")
-        self.dist_weight_line, = self.ax[3].plot(self.dist_weight_x, self.dist_weight_y, label="Anglevel Weight", color="red")
-        self.angle_weight_line, = self.ax[3].plot(self.angle_weight_x, self.angle_weight_y, label="Mindist Weight", color="blue")
-        self.time_weight_line, = self.ax[3].plot(self.time_weight_x, self.time_weight_y, label="Velocity Weight", color="green")
-        self.achieve_line, = self.ax[4].plot(self.achieve_chance_x, self.achieve_chance_y, label="Achieve Chance", color="green")
-        self.collision_line, = self.ax[4].plot(self.collision_chance_x, self.collision_chance_y, label="Collision Chance", color="red")
-        self.none_line, = self.ax[4].plot(self.none_chance_x, self.none_chance_y, label="None Chance", color="blue")
-        self.a_loss_line = self.ax[5].plot(self.a_loss_x, self.a_loss_y, label="Actor Loss", color="blue")[0]
-        self.c_loss_line = self.ax[6].plot(self.c_loss_x, self.c_loss_y, label="Critic Loss", color="red")[0]
-        self.ax[3].legend(handles=[self.dist_weight_line, self.angle_weight_line, self.time_weight_line])
-        self.ax[4].legend(handles=[self.achieve_line, self.collision_line, self.none_line])
+        if plotter_display is True:
+            self.fig, self.ax = plt.subplots(7, figsize=(10,6))
+            self.fig.suptitle("Training Metrics")
+            self.avg_line, = self.ax[0].plot(self.avg_x, self.avg_y, label="Average Reward", color="blue")
+            self.dist_line, = self.ax[1].plot(self.dist_x, self.dist_y, label="Distance Reward", color="red")
+            self.total_reward_line, = self.ax[2].plot(self.total_reward_x, self.total_reward_y, label="Total Reward", color="green")
+            self.dist_weight_line, = self.ax[3].plot(self.dist_weight_x, self.dist_weight_y, label="Anglevel Weight", color="red")
+            self.angle_weight_line, = self.ax[3].plot(self.angle_weight_x, self.angle_weight_y, label="Mindist Weight", color="blue")
+            self.time_weight_line, = self.ax[3].plot(self.time_weight_x, self.time_weight_y, label="Velocity Weight", color="green")
+            self.achieve_line, = self.ax[4].plot(self.achieve_chance_x, self.achieve_chance_y, label="Achieve Chance", color="green")
+            self.collision_line, = self.ax[4].plot(self.collision_chance_x, self.collision_chance_y, label="Collision Chance", color="red")
+            self.none_line, = self.ax[4].plot(self.none_chance_x, self.none_chance_y, label="None Chance", color="blue")
+            self.a_loss_line = self.ax[5].plot(self.a_loss_x, self.a_loss_y, label="Actor Loss", color="blue")[0]
+            self.c_loss_line = self.ax[6].plot(self.c_loss_x, self.c_loss_y, label="Critic Loss", color="red")[0]
+            self.ax[3].legend(handles=[self.dist_weight_line, self.angle_weight_line, self.time_weight_line])
+            self.ax[4].legend(handles=[self.achieve_line, self.collision_line, self.none_line])
         self.show = plotter_display
-        if plotter_display:
+        if plotter_display is True:
             plt.show()
 
     def update(
@@ -256,38 +256,39 @@ class Model_Plotter():
         self.c_loss_y.put(episode, c_loss_y)
         self.a_loss_y.put(episode, a_loss_y)
 
-
-        self.total_reward_line.set_data(self.total_reward_x, self.total_reward_y)
-        self.avg_line.set_data(self.avg_x, self.avg_y)
-        self.dist_line.set_data(self.dist_x, self.dist_y)
-        self.dist_weight_line.set_data(self.dist_weight_x, self.dist_weight_y)
-        self.angle_weight_line.set_data(self.angle_weight_x, self.angle_weight_y)
-        self.time_weight_line.set_data(self.time_weight_x, self.time_weight_y)
-        self.achieve_line.set_data(self.achieve_chance_x, self.achieve_chance_y)
-        self.collision_line.set_data(self.collision_chance_x, self.collision_chance_y)
-        self.none_line.set_data(self.none_chance_x, self.none_chance_y)
-        self.c_loss_line.set_data(self.c_loss_x, self.c_loss_y)
-        self.a_loss_line.set_data(self.a_loss_x, self.a_loss_y)
+        if self.show is True:
+            self.total_reward_line.set_data(self.total_reward_x, self.total_reward_y)
+            self.avg_line.set_data(self.avg_x, self.avg_y)
+            self.dist_line.set_data(self.dist_x, self.dist_y)
+            self.dist_weight_line.set_data(self.dist_weight_x, self.dist_weight_y)
+            self.angle_weight_line.set_data(self.angle_weight_x, self.angle_weight_y)
+            self.time_weight_line.set_data(self.time_weight_x, self.time_weight_y)
+            self.achieve_line.set_data(self.achieve_chance_x, self.achieve_chance_y)
+            self.collision_line.set_data(self.collision_chance_x, self.collision_chance_y)
+            self.none_line.set_data(self.none_chance_x, self.none_chance_y)
+            self.c_loss_line.set_data(self.c_loss_x, self.c_loss_y)
+            self.a_loss_line.set_data(self.a_loss_x, self.a_loss_y)
 
         try:
-            self.ax[0].set_xlim(0, episode+1)
-            self.ax[0].set_ylim(np.min(self.avg_y)-1, np.max(self.avg_y)+1)
-            self.ax[1].set_xlim(0, episode+1)
-            self.ax[1].set_ylim(np.min(self.dist_y), np.max(self.dist_y))
-            self.ax[2].set_xlim(np.min(self.total_reward_x), np.max(self.total_reward_x))
-            self.ax[2].set_ylim(np.min(self.total_reward_y)-1, np.max(self.total_reward_y)+1)
-            self.ax[3].set_xlim(0, episode+1)
-            self.ax[3].set_ylim(min(np.min(self.dist_weight_y), np.min(self.angle_weight_y), np.min(self.time_weight_y)), max(np.max(self.dist_weight_y), np.max(self.angle_weight_y), np.max(self.time_weight_y)))
-            self.ax[4].set_xlim(0, episode+1)
-            self.ax[4].set_ylim(0, 100)
-            self.ax[5].set_xlim(0, episode+1)
-            closs_max = np.max(self.c_loss_y)
-            aloss_max = np.max(self.a_loss_y)
-            closs_min = np.min(self.c_loss_y)
-            aloss_min = np.min(self.a_loss_y)
-            self.ax[6].set_ylim(closs_min, closs_max)
-            self.ax[6].set_xlim(0, episode+1)
-            self.ax[5].set_ylim(aloss_min, aloss_max)
+            if self.show is True:
+                self.ax[0].set_xlim(0, episode+1)
+                self.ax[0].set_ylim(np.min(self.avg_y)-1, np.max(self.avg_y)+1)
+                self.ax[1].set_xlim(0, episode+1)
+                self.ax[1].set_ylim(np.min(self.dist_y), np.max(self.dist_y))
+                self.ax[2].set_xlim(np.min(self.total_reward_x), np.max(self.total_reward_x))
+                self.ax[2].set_ylim(np.min(self.total_reward_y)-1, np.max(self.total_reward_y)+1)
+                self.ax[3].set_xlim(0, episode+1)
+                self.ax[3].set_ylim(min(np.min(self.dist_weight_y), np.min(self.angle_weight_y), np.min(self.time_weight_y)), max(np.max(self.dist_weight_y), np.max(self.angle_weight_y), np.max(self.time_weight_y)))
+                self.ax[4].set_xlim(0, episode+1)
+                self.ax[4].set_ylim(0, 100)
+                self.ax[5].set_xlim(0, episode+1)
+                closs_max = np.max(self.c_loss_y)
+                aloss_max = np.max(self.a_loss_y)
+                closs_min = np.min(self.c_loss_y)
+                aloss_min = np.min(self.a_loss_y)
+                self.ax[6].set_ylim(closs_min, closs_max)
+                self.ax[6].set_xlim(0, episode+1)
+                self.ax[5].set_ylim(aloss_min, aloss_max)
         except:
             print("Error in setting limits")
 
@@ -318,7 +319,7 @@ class Model_Plotter():
             }
         wandb.log(wandb_params)
 
-        if self.show:
+        if self.show is True:
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
             plt.pause(0.001)
