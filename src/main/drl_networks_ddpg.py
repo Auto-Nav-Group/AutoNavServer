@@ -341,6 +341,8 @@ class TrainingExecutor:
         if done:
             if achieved_goal:
                 return FINISH_WEIGHT, 1, 1, 1
+            else:
+                return -FINISH_WEIGHT, 1, 1, 1
         if collision:
             return COLLISION_WEIGHT, 1, 1, 1
         return vel*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT+TIME_WEIGHT, (vel*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
