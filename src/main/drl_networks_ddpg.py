@@ -1,21 +1,16 @@
 import torch
 import numpy as np
 import torch.nn as nn
-import time
 import os
 import sys
 import json
 import wandb
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
 from torch.nn.utils import clip_grad_norm_
 from torch.nn import init
 from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 from drl_utils import ReplayMemory, Transition, NumpyArrayEncoder, Model_Plotter, OUNoise, Model_Visualizer, Normalizer
-from drl_venv import MAX_SPEED, TIME_DELTA
-from IPython import display
 import torch.optim as optim
-import random
 
 SWEEP_CONFIG = {
 
@@ -33,7 +28,6 @@ SAVE_FREQ = 15999
 EVAL_FREQ = -1
 POLICY_FREQ = 2
 VISUALIZER_ENABLED = True
-SEPERATE_NORM_MEM = True
 
 EPISODES = 16000
 MAX_TIMESTEP = 500
@@ -160,7 +154,7 @@ class Critic(nn.Module):
         q = self.relu(q)
         return self.l3(q)
 
-class DDPG(object):
+class TD3(object):
     def __init__(self, state_dim, action_dim, device, map, config=None, policy_freq=POLICY_FREQ):
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -188,10 +182,7 @@ class DDPG(object):
             self.hard_update(self.actor_target, self.actor)
             self.hard_update(self.critic_target, self.critic)
 
-            self.mem = ReplayMemory(10000000)
-            self.norm_mem = ReplayMemory(1)
-            if SEPERATE_NORM_MEM:
-                self.norm_mem = ReplayMemory(10000000)
+            self.norm_mem = ReplayMemory(10000000)
             self.criterion = nn.MSELoss()
 
             self.normalizer = Normalizer(map)
@@ -220,10 +211,7 @@ class DDPG(object):
             self.hard_update(self.actor_target, self.actor)
             self.hard_update(self.critic_target, self.critic)
 
-            self.mem = ReplayMemory(10000000)
-            self.norm_mem = ReplayMemory(1)
-            if SEPERATE_NORM_MEM:
-                self.norm_mem = ReplayMemory(10000000)
+            self.norm_mem = ReplayMemory(10000000)
             self.criterion = nn.MSELoss()
 
             self.normalizer = Normalizer(map)
@@ -253,20 +241,14 @@ class DDPG(object):
         return self.normalizer.NormalizeState(state)
 
     def add_to_memory(self, state, action, next_state, reward):
-        self.mem.push(state, action, next_state, reward)
         self.norm_mem.push(self.normalize_state(state), action, self.normalize_state(next_state), reward)
 
     def update_parameters(self, batch_size, noise, step, achieve_chance):
-        if len(self.mem) < batch_size:
+        if len(self.norm_mem) < batch_size:
             return 0,0
-        if SEPERATE_NORM_MEM:
-            batch = Transition(*zip(*self.norm_mem.sample(batch_size)))
-            states = torch.stack(batch.state).to(self.device).float()
-            next_states = torch.stack(batch.next_state).to(self.device).float()
-        else:
-            batch = Transition(*zip(*self.mem.sample(batch_size)))
-            states = torch.stack(self.normalizer.NormalizeStates(self.mem, batch.state)).to(self.device).float()
-            next_states = torch.stack(self.normalizer.NormalizeStates(self.mem, batch.next_state)).to(self.device).float()
+        batch = Transition(*zip(*self.norm_mem.sample(batch_size)))
+        states = torch.stack(batch.state).to(self.device).float()
+        next_states = torch.stack(batch.next_state).to(self.device).float()
         actions = torch.stack(batch.action).to(self.device).float()
         rewards = torch.stack(batch.reward).to(self.device).float()
         with torch.no_grad():
@@ -346,7 +328,7 @@ class DDPG(object):
 
 class TrainingExecutor:
     def __init__(self, map):
-        self.ddpg = DDPG(STATE_DIM, ACTION_DIM, DEVICE, map)
+        self.network = TD3(STATE_DIM, ACTION_DIM, DEVICE, map)
         self.plotter = None
         self.logger = None
 
@@ -420,8 +402,8 @@ class TrainingExecutor:
                 actions = []
 
                 for step in range(max_steps):
-                    nstate = self.ddpg.normalize_state(state).to(DEVICE)
-                    action = self.ddpg.get_action_with_noise(nstate, noise, total_steps)
+                    nstate = self.network.normalize_state(state).to(DEVICE)
+                    action = self.network.get_action_with_noise(nstate, noise, total_steps)
                     actions.append(action)
                     states.append(state)
                     next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
@@ -429,7 +411,7 @@ class TrainingExecutor:
                         done = True
                     ovr_dist += dist_traveled
                     reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1], next_state[5])
-                    self.ddpg.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE))
+                    self.network.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE))
                     episode_reward += reward
                     episode_tw += tw
                     episode_dw += dw
@@ -438,7 +420,7 @@ class TrainingExecutor:
                     episode_y.append(next_state[2])
                     state = torch.FloatTensor(next_state).to(DEVICE)
 
-                    c_loss, a_loss = self.ddpg.update_parameters(batch_size, noise, total_steps, self.plotter.get_achieve_chance(episode))
+                    c_loss, a_loss = self.network.update_parameters(batch_size, noise, total_steps, self.plotter.get_achieve_chance(episode))
                     episode_closs.append(c_loss)
                     episode_aloss.append(a_loss)
 
@@ -451,16 +433,16 @@ class TrainingExecutor:
                     if done:
                         break
 
-                states = torch.stack(states).to(self.ddpg.device)
-                actions = torch.stack(actions).to(self.ddpg.device)
-                action_q = self.ddpg.critic.forward((states, actions)).detach().cpu().numpy()
+                states = torch.stack(states).to(self.network.device)
+                actions = torch.stack(actions).to(self.network.device)
+                action_q = self.network.critic.forward((states, actions)).detach().cpu().numpy()
                 if VISUALIZER_ENABLED:
                     visualizer.clear()
                     visualizer.update(episode_x, episode_y, action_q)
                 if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
                     self.save(episode)
                 if EVAL_FREQ != -1 and (episode+1) % EVAL_FREQ == 0:
-                    eval_rew, eval_ac = self.ddpg.evaluate(env, self.get_reward)
+                    eval_rew, eval_ac = self.network.evaluate(env, self.get_reward)
                 else:
                     eval_rew = -1
                     eval_ac = -1
@@ -476,7 +458,7 @@ class TrainingExecutor:
             visualizer = None
             if VISUALIZER_ENABLED:
                 visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
-            self.ddpg = DDPG(STATE_DIM, ACTION_DIM, DEVICE, map, config=config)
+            self.network = TD3(STATE_DIM, ACTION_DIM, DEVICE, map, config=config)
             total_steps = 0
             for episode in range(start_episode, num_episodes):
                 state, dist = env.reset()
@@ -503,8 +485,8 @@ class TrainingExecutor:
                 actions = []
 
                 for step in range(max_steps):
-                    nstate = self.ddpg.normalize_state(state).to(DEVICE)
-                    action = self.ddpg.get_action_with_noise(nstate, noise, total_steps)
+                    nstate = self.network.normalize_state(state).to(DEVICE)
+                    action = self.network.get_action_with_noise(nstate, noise, total_steps)
                     actions.append(action)
                     states.append(state)
                     next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
@@ -513,8 +495,8 @@ class TrainingExecutor:
                     ovr_dist += dist_traveled
                     reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1],
                                                          next_state[5])
-                    self.ddpg.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE),
-                                            torch.tensor([reward]).to(DEVICE))
+                    self.network.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE),
+                                               torch.tensor([reward]).to(DEVICE))
                     episode_reward += reward
                     episode_tw += tw
                     episode_dw += dw
@@ -523,7 +505,7 @@ class TrainingExecutor:
                     episode_y.append(next_state[2])
                     state = torch.FloatTensor(next_state).to(DEVICE)
 
-                    c_loss, a_loss = self.ddpg.update_parameters(batch_size, noise, total_steps, self.plotter.get_achieve_chance(episode))
+                    c_loss, a_loss = self.network.update_parameters(batch_size, noise, total_steps, self.plotter.get_achieve_chance(episode))
                     episode_closs.append(c_loss)
                     episode_aloss.append(a_loss)
 
@@ -536,16 +518,16 @@ class TrainingExecutor:
                     if done:
                         break
 
-                states = torch.stack(states).to(self.ddpg.device)
-                actions = torch.stack(actions).to(self.ddpg.device)
-                action_q = self.ddpg.critic.forward((states, actions)).detach().cpu().numpy()
+                states = torch.stack(states).to(self.network.device)
+                actions = torch.stack(actions).to(self.network.device)
+                action_q = self.network.critic.forward((states, actions)).detach().cpu().numpy()
                 if VISUALIZER_ENABLED:
                     visualizer.clear()
                     visualizer.update(episode_x, episode_y, action_q)
                 if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
                     self.save(episode)
                 if EVAL_FREQ != -1 and (episode+1) % EVAL_FREQ == 0:
-                    eval_rew, eval_ac = self.ddpg.evaluate(env, self.get_reward)
+                    eval_rew, eval_ac = self.network.evaluate(env, self.get_reward)
                 else:
                     eval_rew = -1
                     eval_ac = -1
@@ -558,8 +540,8 @@ class TrainingExecutor:
         wandb.finish()
 
     def test(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0):
-        self.ddpg.actor.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_actor.pth"))
-        self.ddpg.critic.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_critic.pth"))
+        self.network.actor.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_actor.pth"))
+        self.network.critic.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_critic.pth"))
         rewards = []
         visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
         for episode in range(start_episode, num_episodes):
@@ -583,8 +565,8 @@ class TrainingExecutor:
             states = []
             actions = []
             for step in range(max_steps):
-                nstate = self.ddpg.normalize_state(state).to(DEVICE)
-                action = self.ddpg.get_action(nstate)
+                nstate = self.network.normalize_state(state).to(DEVICE)
+                action = self.network.get_action(nstate)
                 actions.append(action)
                 states.append(state)
                 next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
@@ -604,9 +586,9 @@ class TrainingExecutor:
                     episode_achieve = 1
                 if done:
                     break
-            states = torch.stack(states).to(self.ddpg.device)
-            actions = torch.stack(actions).to(self.ddpg.device)
-            action_q = self.ddpg.critic.forward((states, actions)).detach().cpu().numpy()
+            states = torch.stack(states).to(self.network.device)
+            actions = torch.stack(actions).to(self.network.device)
+            action_q = self.network.critic.forward((states, actions)).detach().cpu().numpy()
             visualizer.clear()
             visualizer.update(episode_x, episode_y, action_q)
             rewards.append(episode_reward)
@@ -624,13 +606,13 @@ class TrainingExecutor:
         with open(f"{directory}/{filename}/statistics.json", "w") as outfile:
             json.dump(statistics, outfile, cls=NumpyArrayEncoder)
         with open(f"{directory}/{filename}/memory.json", "w") as outfile:
-            outfile.write(self.ddpg.mem.to_json())
+            outfile.write(self.network.mem.to_json())
         with open(f"{directory}/{filename}/core.json", "w") as outfile:
             json.dump({
                 "episode": episode
             }, outfile)
-        torch.save(self.ddpg.actor.state_dict(), f"{directory}/{filename}/agent_actor.pth")
-        torch.save(self.ddpg.critic.state_dict(), f"{directory}/{filename}/agent_critic.pth")
+        torch.save(self.network.actor.state_dict(), f"{directory}/{filename}/agent_actor.pth")
+        torch.save(self.network.critic.state_dict(), f"{directory}/{filename}/agent_critic.pth")
 
     def load(self, episodes=EPISODES, filename=FILE_NAME, directory=FILE_LOCATION):
         with open(f"{directory}/{filename}/statistics.json", "r") as infile:
@@ -654,9 +636,9 @@ class TrainingExecutor:
             }
             self.plotter.load(np_stats)
         with open(f"{directory}/{filename}/memory.json", "r") as infile:
-            self.ddpg.mem.from_json(infile.read(), DEVICE)
+            self.network.mem.from_json(infile.read(), DEVICE)
         with open(f"{directory}/{filename}/core.json", "r") as infile:
             episode = json.load(infile)["episode"]
-        self.ddpg.actor.load_state_dict(torch.load(f"{directory}/{filename}/agent_actor.pth"))
-        self.ddpg.critic.load_state_dict(torch.load(f"{directory}/{filename}/agent_critic.pth"))
+        self.network.actor.load_state_dict(torch.load(f"{directory}/{filename}/agent_actor.pth"))
+        self.network.critic.load_state_dict(torch.load(f"{directory}/{filename}/agent_critic.pth"))
         return episode

@@ -61,7 +61,6 @@ class DRL_VENV:
             self.environment_ids.append(self.obstacles[i])
         for i in range(len(self.environment_ids)):
             self.environment_dim += p.getNumJoints(self.environment_ids[i])
-        print(self.environment_dim)
         self.robotid = p.loadURDF("robot.urdf", [0, 0, 0.1])
 
     def new_goal(self):
