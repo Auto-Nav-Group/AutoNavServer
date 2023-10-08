@@ -52,7 +52,7 @@ ACTION_DIM = 2
 ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 512
 
-ACTOR_LR = 0.000001
+ACTOR_LR = 0.001
 ACTOR_LR_STEP_SIZE = 5e6
 ACTOR_LR_GAMMA = 0.452
 ACTOR_LR_WEIGHT_DECAY = 0.0001
@@ -60,7 +60,7 @@ ACTOR_LR_WEIGHT_DECAY = 0.0001
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 0.00003
+CRITIC_LR = 0.001
 CRITIC_LR_STEP_SIZE = 5e6
 CRITIC_LR_GAMMA = 0.363
 CRITIC_LR_WEIGHT_DECAY = 0.0001
@@ -292,6 +292,7 @@ class TD3(object):
             self.actor_optim.zero_grad()
             self.actor_loss.backward()
             self.actor_optim.step()
+            clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
 
         if self.config is None:
             self.soft_update(self.actor_target, self.actor, TAU)
@@ -299,7 +300,6 @@ class TD3(object):
         else:
             self.soft_update(self.actor_target, self.actor, self.config.tau)
             self.soft_update(self.critic_target, self.critic, self.config.tau)
-        clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
         clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
 
 
