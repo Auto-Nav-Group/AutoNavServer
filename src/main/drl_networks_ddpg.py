@@ -139,26 +139,44 @@ class Critic(nn.Module):
         self.l1 = nn.Linear(state_dim+action_dim, CRITIC_LAYER_1)
         self.l2 = nn.Linear(CRITIC_LAYER_1, CRITIC_LAYER_2)
         self.l3 = nn.Linear(CRITIC_LAYER_2, 1)
+
+        self.l4 = nn.Linear(state_dim+action_dim, CRITIC_LAYER_1)
+        self.l5 = nn.Linear(CRITIC_LAYER_1, CRITIC_LAYER_2)
+        self.l6 = nn.Linear(CRITIC_LAYER_2, 1)
         self.relu = nn.ReLU()
         init.xavier_uniform_(self.l1.weight)
         init.xavier_uniform_(self.l2.weight)
         init.xavier_uniform_(self.l3.weight)
+        init.xavier_uniform_(self.l4.weight)
+        init.xavier_uniform_(self.l5.weight)
+        init.xavier_uniform_(self.l6.weight)
 
     def forward(self, xs):
         x, a = xs
         x = x.to(torch.float32)
         a = a.to(torch.float32)
-        q = self.l1(torch.cat([x,a], 1))
-        q = self.relu(q)
-        q = self.l2(q)
-        q = self.relu(q)
-        return self.l3(q)
+        q1 = self.relu(self.l1(torch.cat([x,a], 1)))
+        q1 = self.relu(self.l2(q1))
+        q1 = self.l3(q1)
+        q2 = self.relu(self.l4(torch.cat([x,a], 1)))
+        q2 = self.relu(self.l5(q2))
+        q2 = self.l6(q2)
+        return q1, q2
+    def q1(self, xs):
+        x, a = xs
+        x = x.to(torch.float32)
+        a = a.to(torch.float32)
+        q1 = self.relu(self.l1(torch.cat([x,a], 1)))
+        q1 = self.relu(self.l2(q1))
+        q1 = self.l3(q1)
+        return q1
 
 class TD3(object):
     def __init__(self, state_dim, action_dim, device, inpmap, config=None, policy_freq=POLICY_FREQ):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.policy_freq = policy_freq
+        self.actor_loss = 0
 
         self.device = device
 
@@ -170,15 +188,11 @@ class TD3(object):
 
             self.actor = Actor(state_dim, action_dim).to(self.device)
             self.actor_target = Actor(state_dim, action_dim).to(self.device)
-            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=ACTOR_LR, weight_decay=ACTOR_LR_WEIGHT_DECAY)
+            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=self.actor_lr, weight_decay=ACTOR_LR_WEIGHT_DECAY)
 
             self.critic = Critic(state_dim, action_dim).to(self.device)
             self.critic_target = Critic(state_dim, action_dim).to(self.device)
-            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=CRITIC_LR, weight_decay=CRITIC_LR_WEIGHT_DECAY)
-
-            self.critic2 = Critic(state_dim, action_dim).to(self.device)
-            self.critic2_target = Critic(state_dim, action_dim).to(self.device)
-            self.critic2_optim = optim.AdamW(self.critic2.parameters(), lr=CRITIC_LR, weight_decay=CRITIC_LR_WEIGHT_DECAY)
+            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr, weight_decay=CRITIC_LR_WEIGHT_DECAY)
 
             self.hard_update(self.actor_target, self.actor)
             self.hard_update(self.critic_target, self.critic)
@@ -191,7 +205,7 @@ class TD3(object):
             #self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
             #self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
             self.actor_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=ACTOR_LR_GAMMA)
-            self.critic_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=CRITIC_LR_GAMMA)
+            self.critic_lr_scheduler = ReduceLROnPlateau(self.critic_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=CRITIC_LR_GAMMA)
         else:
             self.config = config
             self.actor_lr = config.actor_lr
@@ -204,23 +218,20 @@ class TD3(object):
             self.critic = Critic(state_dim, action_dim).to(self.device)
             self.critic_target = Critic(state_dim, action_dim).to(self.device)
             self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr, weight_decay=config.critic_lr_weight_decay)
-            
-            self.critic2 = Critic(state_dim, action_dim).to(self.device)
-            self.critic2_target = Critic(state_dim, action_dim).to(self.device)
-            self.critic2_optim = optim.AdamW(self.critic2.parameters(), lr=CRITIC_LR, weight_decay=CRITIC_LR_WEIGHT_DECAY)
+
 
             self.hard_update(self.actor_target, self.actor)
             self.hard_update(self.critic_target, self.critic)
 
             self.norm_mem = ReplayMemory(10000000)
-            self.criterion = nn.MSELoss()
+            self.criterion = nn.MSELoss
 
             self.normalizer = Normalizer(inpmap)
 
             #self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
             #self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
             self.actor_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=config.actor_lr_gamma)
-            self.critic_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=config.critic_lr_gamma)
+            self.critic_lr_scheduler = ReduceLROnPlateau(self.critic_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=config.critic_lr_gamma)
 
     @staticmethod
     def hard_update(target, source):
@@ -258,44 +269,33 @@ class TD3(object):
             next_actions = self.actor_target.forward_with_noise(states, noise, step)
             next_actions = torch.clamp(next_actions, -1, 1)
         #Critic loss
-        QVal = self.critic((states, actions))
-        QVal2 = self.critic2((states, actions))
-        next_Q1 = self.critic_target((next_states, next_actions.detach()))
-        next_Q2 = self.critic2_target((next_states, next_actions.detach()))
+        QVal, QVal2 = self.critic((states, actions))
+        next_Q1, next_Q2 = self.critic_target((next_states, next_actions.detach()))
         next_Q_min = torch.min(next_Q1, next_Q2)
         QPrime = rewards + GAMMA * next_Q_min
         
-        critic1_loss = self.criterion(QVal, QPrime)
-        critic1_loss = critic1_loss.float()
-        critic2_loss = self.criterion(QVal2, QPrime)
-        critic2_loss = critic2_loss.float()
+        critic_loss = self.criterion(QVal, QPrime) + self.criterion(QVal2, QPrime)
+        critic_loss = critic_loss.float()
 
         self.critic_optim.zero_grad()
-        critic1_loss.backward(retain_graph=True)
+        critic_loss.backward()
         self.critic_optim.step()
 
-        self.critic2_optim.zero_grad()
-        critic2_loss.backward(retain_graph=True)
-        self.critic2_optim.step()
-
-        #Actor loss
-        actor_losses = self.critic.forward((states, self.actor.forward(states)))
-        actor_loss = -actor_losses.mean()
         #Update networks
         if self.update_steps % self.policy_freq == 0:
+            # Actor loss
+            actor_losses = self.critic.q1((states, self.actor.forward(states))).mean()
+            self.actor_loss = -actor_losses
             self.actor_optim.zero_grad()
-            actor_loss.backward()
+            self.actor_loss.backward()
             self.actor_optim.step()
 
         if self.config is None:
             self.soft_update(self.actor_target, self.actor, TAU)
             self.soft_update(self.critic_target, self.critic, TAU)
-            self.soft_update(self.critic2_target, self.critic, TAU)
         else:
             self.soft_update(self.actor_target, self.actor, self.config.tau)
             self.soft_update(self.critic_target, self.critic, self.config.tau)
-            self.soft_update(self.critic2_target, self.critic, self.config.tau)
-
         clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
         clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
 
@@ -305,7 +305,7 @@ class TD3(object):
         self.critic_lr_scheduler.step(achieve_chance)
         self.actor_lr_scheduler.step(achieve_chance)
         self.update_steps += 1
-        return (critic2_loss.item()+critic1_loss.item())/2, actor_loss.item()
+        return critic_loss.detach().cpu().numpy(), self.actor_loss.item()
     def evaluate(self, venv, reward_func, eval_episodes=10):
         avg_reward = 0
         achieve_rate = 0
@@ -414,10 +414,10 @@ class TrainingExecutor:
                     if done:
                         break
 
-                states = torch.stack(states).to(self.network.device)
-                actions = torch.stack(actions).to(self.network.device)
-                action_q = self.network.critic.forward((states, actions)).detach().cpu().numpy()
                 if VISUALIZER_ENABLED:
+                    states = torch.stack(states).to(self.network.device)
+                    actions = torch.stack(actions).to(self.network.device)
+                    action_q = self.network.critic.forward((states, actions)).detach().cpu().numpy()
                     visualizer.clear()
                     visualizer.update(episode_x, episode_y, action_q)
                 if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
@@ -499,10 +499,10 @@ class TrainingExecutor:
                     if done:
                         break
 
-                states = torch.stack(states).to(self.network.device)
-                actions = torch.stack(actions).to(self.network.device)
-                action_q = self.network.critic.forward((states, actions)).detach().cpu().numpy()
                 if VISUALIZER_ENABLED:
+                    states = torch.stack(states).to(self.network.device)
+                    actions = torch.stack(actions).to(self.network.device)
+                    action_q = self.network.critic.forward((states, actions)).detach().cpu().numpy()
                     visualizer.clear()
                     visualizer.update(episode_x, episode_y, action_q)
                 if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
