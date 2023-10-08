@@ -224,8 +224,8 @@ class TD3(object):
             self.hard_update(self.critic_target, self.critic)
 
             self.norm_mem = ReplayMemory(10000000)
-            self.criterion = nn.MSELoss
-
+            self.criterion = f.mse_loss
+            
             self.normalizer = Normalizer(inpmap)
 
             #self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
@@ -273,9 +273,12 @@ class TD3(object):
         next_Q1, next_Q2 = self.critic_target((next_states, next_actions.detach()))
         next_Q_min = torch.min(next_Q1, next_Q2)
         QPrime = rewards + GAMMA * next_Q_min
+        QPrime = QPrime.detach()
+    
+        closs1 = self.criterion(QVal, QPrime).float()
+        closs2 = self.criterion(QVal2, QPrime).float()
         
-        critic_loss = self.criterion(QVal, QPrime) + self.criterion(QVal2, QPrime)
-        critic_loss = critic_loss.float()
+        critic_loss = closs1+closs2
 
         self.critic_optim.zero_grad()
         critic_loss.backward()
