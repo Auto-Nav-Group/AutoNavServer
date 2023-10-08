@@ -606,7 +606,7 @@ class TrainingExecutor:
         with open(f"{directory}/{filename}/statistics.json", "w") as outfile:
             json.dump(statistics, outfile, cls=NumpyArrayEncoder)
         with open(f"{directory}/{filename}/memory.json", "w") as outfile:
-            outfile.write(self.network.mem.to_json())
+            outfile.write(self.network.norm_mem.to_json())
         with open(f"{directory}/{filename}/core.json", "w") as outfile:
             json.dump({
                 "episode": episode
@@ -636,7 +636,7 @@ class TrainingExecutor:
             }
             self.plotter.load(np_stats)
         with open(f"{directory}/{filename}/memory.json", "r") as infile:
-            self.network.mem.from_json(infile.read(), DEVICE)
+            self.network.norm_mem.from_json(infile.read(), DEVICE)
         with open(f"{directory}/{filename}/core.json", "r") as infile:
             episode = json.load(infile)["episode"]
         self.network.actor.load_state_dict(torch.load(f"{directory}/{filename}/agent_actor.pth"))
