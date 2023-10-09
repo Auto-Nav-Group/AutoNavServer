@@ -112,9 +112,9 @@ class Actor(nn.Module):
         self.l2 = nn.Linear(ACTOR_LAYER_1, ACTOR_LAYER_2)
         self.l3 = nn.Linear(ACTOR_LAYER_2, action_dim)
         self.tanh = nn.Tanh()
-        init.xavier_uniform_(self.l1.weight)
-        init.xavier_uniform_(self.l2.weight)
-        init.xavier_uniform_(self.l3.weight)
+        init.kaiming_uniform_(self.l1.weight, nonlinearity='relu')
+        init.kaiming_uniform_(self.l2.weight, nonlinearity='relu')
+        init.kaiming_uniform_(self.l3.weight, nonlinearity='relu')
 
     def forward(self, state):
         state = state.to(torch.float32)
@@ -144,12 +144,12 @@ class Critic(nn.Module):
         self.l5 = nn.Linear(CRITIC_LAYER_1, CRITIC_LAYER_2)
         self.l6 = nn.Linear(CRITIC_LAYER_2, 1)
         self.relu = nn.ReLU()
-        init.xavier_uniform_(self.l1.weight)
-        init.xavier_uniform_(self.l2.weight)
-        init.xavier_uniform_(self.l3.weight)
-        init.xavier_uniform_(self.l4.weight)
-        init.xavier_uniform_(self.l5.weight)
-        init.xavier_uniform_(self.l6.weight)
+        init.kaiming_uniform_(self.l1.weight, nonlinearity='relu')
+        init.kaiming_uniform_(self.l2.weight, nonlinearity='relu')
+        init.kaiming_uniform_(self.l3.weight, nonlinearity='relu')
+        init.kaiming_uniform_(self.l4.weight, nonlinearity='relu')
+        init.kaiming_uniform_(self.l5.weight, nonlinearity='relu')
+        init.kaiming_uniform_(self.l6.weight, nonlinearity='relu')
 
     def forward(self, xs):
         x, a = xs
@@ -266,8 +266,10 @@ class TD3(object):
         actions = torch.stack(batch.action).to(self.device).float()
         rewards = torch.stack(batch.reward).to(self.device).float()
         with torch.no_grad():
-            next_actions = self.actor_target.forward_with_noise(states, noise, step)
-            next_actions = torch.clamp(next_actions, -1, 1)
+            noise = torch.Tensor(actions).data.normal_(0, 0.2).to(self.device)
+            noise = noise.clamp(-0.5, 0.5)
+            next_actions = self.actor_target.forward(states)
+            next_actions = torch.clamp(next_actions+noise, -1, 1)
         #Critic loss
         QVal, QVal2 = self.critic((states, actions))
         next_Q1, next_Q2 = self.critic_target((next_states, next_actions.detach()))
@@ -294,11 +296,13 @@ class TD3(object):
             self.actor_optim.step()
             clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
 
+            if self.config is None:
+                self.soft_update(self.actor_target, self.actor, TAU)
+            else:
+                self.soft_update(self.actor_target, self.actor, self.config.tau)
         if self.config is None:
-            self.soft_update(self.actor_target, self.actor, TAU)
             self.soft_update(self.critic_target, self.critic, TAU)
         else:
-            self.soft_update(self.actor_target, self.actor, self.config.tau)
             self.soft_update(self.critic_target, self.critic, self.config.tau)
         clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
 
@@ -621,8 +625,8 @@ class TrainingExecutor:
                 "achieve_chance_y": np.asarray(stats["achieve_chance_y"]),
                 "collision_chance_y": np.asarray(stats["collision_chance_y"]),
                 "none_chance_y": np.asarray(stats["none_chance_y"]),
-                "critic_loss_y": np.asarray(stats["critic_loss_y"]),
-                "actor_loss_y": np.asarray(stats["actor_loss_y"]),
+                "critic_loss_y": np.asarray(stats["critic_loss"]),
+                "actor_loss_y": np.asarray(stats["actor_loss"]),
             }
             self.plotter.load(np_stats)
         with open(f"{directory}/{filename}/memory.json", "r") as infile:
