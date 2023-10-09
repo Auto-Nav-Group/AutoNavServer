@@ -33,18 +33,17 @@ DRL_VENV = DRL_VENV(map=mapobj, assets_path=ASSET_PATH)
 #train(DRL_VENV)
 
 te = TrainingExecutor(mapobj)
-te.train(DRL_VENV, plotter_display=False)
-"""while True:
+while True:
     inp = input("T - Train\n"
           "L - Load\n"
                 "R - Run\n")
     inp = inp.upper()
     if inp == "T":
         #train(DRL_VENV)
-        te.train(DRL_VENV, plotter_display=True)
+        te.train(DRL_VENV, plotter_display=False)
     elif inp == "L":
         e = te.load()
         te.train(DRL_VENV, start_episode=e, plotter_display=False)
     elif inp == "R":
         te.test(DRL_VENV)
-    time.sleep(1)"""
+    time.sleep(1)

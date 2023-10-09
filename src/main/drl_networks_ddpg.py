@@ -24,12 +24,12 @@ else:
     print("SYSTEM NOT SUPPORTED. EXITING")
     exit()
 FILE_NAME = "SampleModel"
-SAVE_FREQ = 15999
+SAVE_FREQ = 999
 EVAL_FREQ = -1
 POLICY_FREQ = 2
 VISUALIZER_ENABLED = False
 
-EPISODES = 16000
+EPISODES = 1000
 MAX_TIMESTEP = 500
 BATCH_SIZE = 512
 
@@ -52,24 +52,24 @@ ACTION_DIM = 2
 ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 512
 
-ACTOR_LR = 0.001
+ACTOR_LR = 1e-4
 ACTOR_LR_STEP_SIZE = 5e6
-ACTOR_LR_GAMMA = 0.452
+ACTOR_LR_GAMMA = 0.1
 ACTOR_LR_WEIGHT_DECAY = 0.0001
 
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 0.001
+CRITIC_LR = 1e-4
 CRITIC_LR_STEP_SIZE = 5e6
-CRITIC_LR_GAMMA = 0.363
+CRITIC_LR_GAMMA = 0.1
 CRITIC_LR_WEIGHT_DECAY = 0.0001
 
 START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.99999
 TAU = 0.005
 
-START_NOISE = 1
+START_NOISE = 0.4
 END_NOISE = 0.1
 NOISE_DECAY_STEPS = 500000
 
@@ -120,7 +120,7 @@ class Actor(nn.Module):
         state = state.to(torch.float32)
         a = f.relu(self.l1(state))
         a = f.relu(self.l2(a))
-        a = f.relu(self.l3(a))
+        a = self.l3(a)
         a = torch.tanh(a)
         return a
 
@@ -422,7 +422,7 @@ class TrainingExecutor:
                 if VISUALIZER_ENABLED:
                     states = torch.stack(states).to(self.network.device)
                     actions = torch.stack(actions).to(self.network.device)
-                    action_q = self.network.critic.forward((states, actions)).detach().cpu().numpy()
+                    action_q = self.network.critic.forward((states, actions))
                     visualizer.clear()
                     visualizer.update(episode_x, episode_y, action_q)
                 if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
@@ -507,7 +507,7 @@ class TrainingExecutor:
                 if VISUALIZER_ENABLED:
                     states = torch.stack(states).to(self.network.device)
                     actions = torch.stack(actions).to(self.network.device)
-                    action_q = self.network.critic.forward((states, actions)).detach().cpu().numpy()
+                    action_q = self.network.critic.forward((states, actions))
                     visualizer.clear()
                     visualizer.update(episode_x, episode_y, action_q)
                 if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
@@ -527,7 +527,9 @@ class TrainingExecutor:
 
     def test(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0):
         self.network.actor.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_actor.pth"))
+        self.network.actor_target.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_actor.pth"))
         self.network.critic.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_critic.pth"))
+        self.network.critic_target.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_critic.pth"))
         rewards = []
         visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
         for episode in range(start_episode, num_episodes):
@@ -557,6 +559,8 @@ class TrainingExecutor:
                 states.append(state)
                 next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
                 ovr_dist += dist_traveled
+                if step == max_steps - 1:
+                    done = True
                 reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1], next_state[5])
                 episode_reward += reward
                 episode_tw += tw
@@ -574,7 +578,7 @@ class TrainingExecutor:
                     break
             states = torch.stack(states).to(self.network.device)
             actions = torch.stack(actions).to(self.network.device)
-            action_q = self.network.critic.forward((states, actions)).detach().cpu().numpy()
+            action_q = self.network.critic.forward((states, actions))
             visualizer.clear()
             visualizer.update(episode_x, episode_y, action_q)
             rewards.append(episode_reward)
@@ -627,4 +631,6 @@ class TrainingExecutor:
             episode = json.load(infile)["episode"]
         self.network.actor.load_state_dict(torch.load(f"{directory}/{filename}/agent_actor.pth"))
         self.network.critic.load_state_dict(torch.load(f"{directory}/{filename}/agent_critic.pth"))
+        self.network.actor_target.load_state_dict(torch.load(f"{directory}/{filename}/agent_actor.pth"))
+        self.network.critic_target.load_state_dict(torch.load(f"{directory}/{filename}/agent_critic.pth"))
         return episode

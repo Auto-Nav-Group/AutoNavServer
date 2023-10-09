@@ -400,10 +400,14 @@ class Model_Visualizer:
         self.fig.canvas.flush_events()
         plt.pause(0.001)
     def update(self, x, y, q):
-        grad = list(Color("red").range_to(Color("green"), len(q)))
-        ordered_q = sorted(q)
-        for i in range(len(q)):
-            self.ax.scatter(x[i], y[i], color=grad[ordered_q.index(q[i])].hex)
+        q1, q2 = q
+        qvals = []
+        for i in range(len(q1)):
+            qvals.append(min(q1[i], q2[i]).item())
+        grad = list(Color("red").range_to(Color("green"), len(qvals)))
+        ordered_q = sorted(qvals)
+        for i in range(len(qvals)):
+            self.ax.scatter(x[i], y[i], color=grad[ordered_q.index(qvals[i])].hex)
         self.ax.scatter(self.goalx, self.goaly, color='purple')
         self.ax.scatter(self.x, self.y, color='blue')
         self.fig.canvas.draw()
