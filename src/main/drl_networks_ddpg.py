@@ -29,7 +29,7 @@ EVAL_FREQ = -1
 POLICY_FREQ = 2
 VISUALIZER_ENABLED = False
 
-EPISODES = 1000
+EPISODES = 30000
 MAX_TIMESTEP = 500
 BATCH_SIZE = 512
 
@@ -128,7 +128,7 @@ class Actor(nn.Module):
         state = state.to(torch.float32)
         a = f.relu(self.l1(state))
         a = f.relu(self.l2(a))
-        a = f.relu(self.l3(a))
+        a = self.l3(a)
         a = noise.get_action(a, step)
         a = torch.tanh(torch.FloatTensor(a).to(DEVICE))
         return a
