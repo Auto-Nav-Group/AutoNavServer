@@ -52,7 +52,7 @@ ACTION_DIM = 2
 ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 512
 
-ACTOR_LR = 1e-4
+ACTOR_LR = 1e-3
 ACTOR_LR_STEP_SIZE = 5e6
 ACTOR_LR_GAMMA = 0.1
 ACTOR_LR_WEIGHT_DECAY = 0.0001
@@ -60,7 +60,7 @@ ACTOR_LR_WEIGHT_DECAY = 0.0001
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 1e-5
+CRITIC_LR = 1e-4
 CRITIC_LR_STEP_SIZE = 5e6
 CRITIC_LR_GAMMA = 0.1
 CRITIC_LR_WEIGHT_DECAY = 0.0001
@@ -188,11 +188,11 @@ class TD3(object):
 
             self.actor = Actor(state_dim, action_dim).to(self.device)
             self.actor_target = Actor(state_dim, action_dim).to(self.device)
-            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=self.actor_lr, weight_decay=ACTOR_LR_WEIGHT_DECAY)
+            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=self.actor_lr)
 
             self.critic = Critic(state_dim, action_dim).to(self.device)
             self.critic_target = Critic(state_dim, action_dim).to(self.device)
-            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr, weight_decay=CRITIC_LR_WEIGHT_DECAY)
+            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr)
 
             self.hard_update(self.actor_target, self.actor)
             self.hard_update(self.critic_target, self.critic)
@@ -213,11 +213,11 @@ class TD3(object):
 
             self.actor = Actor(state_dim, action_dim).to(self.device)
             self.actor_target = Actor(state_dim, action_dim).to(self.device)
-            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=self.actor_lr, weight_decay=config.actor_lr_weight_decay)
+            self.actor_optim = optim.AdamW(self.actor.parameters(), lr=self.actor_lr)
 
             self.critic = Critic(state_dim, action_dim).to(self.device)
             self.critic_target = Critic(state_dim, action_dim).to(self.device)
-            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr, weight_decay=config.critic_lr_weight_decay)
+            self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr)
 
 
             self.hard_update(self.actor_target, self.actor)
@@ -256,7 +256,7 @@ class TD3(object):
 
     def add_to_memory(self, state, action, next_state, reward, done):
         d = lambda x: 1 if x is True else 0
-        self.norm_mem.push(self.normalize_state(state), action, self.normalize_state(next_state), reward, d(done))
+        self.norm_mem.push(self.normalize_state(state), action, self.normalize_state(next_state), reward, torch.FloatTensor([d(done)]))
 
     def update_parameters(self, batch_size, noise, step, achieve_chance):
         if len(self.norm_mem) < batch_size:
@@ -291,8 +291,8 @@ class TD3(object):
         #Update networks
         if self.update_steps % self.policy_freq == 0:
             # Actor loss
-            actor_losses = self.critic.q1((states, self.actor.forward(states))).mean()
-            self.actor_loss = -actor_losses
+            actor_loss1, actor_loss2 = self.critic.forward((states, self.actor.forward(states)))
+            self.actor_loss = -(actor_loss1.mean()+actor_loss2.mean())/2
             self.actor_optim.zero_grad()
             self.actor_loss.backward()
             self.actor_optim.step()
