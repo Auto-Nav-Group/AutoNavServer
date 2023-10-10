@@ -60,7 +60,7 @@ ACTOR_LR_WEIGHT_DECAY = 0.0001
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 1e-4
+CRITIC_LR = 1e-5
 CRITIC_LR_STEP_SIZE = 5e6
 CRITIC_LR_GAMMA = 0.1
 CRITIC_LR_WEIGHT_DECAY = 0.0001
@@ -69,9 +69,9 @@ START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.99999
 TAU = 0.005
 
-START_NOISE = 0.4
-END_NOISE = 0.1
-NOISE_DECAY_STEPS = 500000
+START_NOISE = 0.75
+END_NOISE = 0
+NOISE_DECAY_STEPS = 75000
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -230,8 +230,8 @@ class TD3(object):
 
             #self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
             #self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
-            self.actor_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=config.actor_lr_gamma)
-            self.critic_lr_scheduler = ReduceLROnPlateau(self.critic_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=config.critic_lr_gamma)
+            #self.actor_lr_scheduler = ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=config.actor_lr_gamma)
+            #self.critic_lr_scheduler = ReduceLROnPlateau(self.critic_optim, "max", threshold=10, threshold_mode="abs", patience=5, factor=config.critic_lr_gamma)
 
     @staticmethod
     def hard_update(target, source):
@@ -254,8 +254,9 @@ class TD3(object):
     def normalize_state(self, state):
         return self.normalizer.NormalizeState(state)
 
-    def add_to_memory(self, state, action, next_state, reward):
-        self.norm_mem.push(self.normalize_state(state), action, self.normalize_state(next_state), reward)
+    def add_to_memory(self, state, action, next_state, reward, done):
+        d = lambda x: 1 if x is True else 0
+        self.norm_mem.push(self.normalize_state(state), action, self.normalize_state(next_state), reward, d(done))
 
     def update_parameters(self, batch_size, noise, step, achieve_chance):
         if len(self.norm_mem) < batch_size:
@@ -265,6 +266,7 @@ class TD3(object):
         next_states = torch.stack(batch.next_state).to(self.device).float()
         actions = torch.stack(batch.action).to(self.device).float()
         rewards = torch.stack(batch.reward).to(self.device).float()
+        dones = torch.stack(batch.done).to(self.device).float()
         with torch.no_grad():
             noise = torch.Tensor(actions).data.normal_(0, 0.2).to(self.device)
             noise = noise.clamp(-0.5, 0.5)
@@ -274,7 +276,7 @@ class TD3(object):
         QVal, QVal2 = self.critic((states, actions))
         next_Q1, next_Q2 = self.critic_target((next_states, next_actions.detach()))
         next_Q_min = torch.min(next_Q1, next_Q2)
-        QPrime = rewards + GAMMA * next_Q_min
+        QPrime = rewards + dones * GAMMA * next_Q_min
         QPrime = QPrime.detach()
     
         closs1 = self.criterion(QVal, QPrime).float()
@@ -309,8 +311,8 @@ class TD3(object):
 
         #self.critic_lr_scheduler.step()
         #self.actor_lr_scheduler.step()
-        self.critic_lr_scheduler.step(achieve_chance)
-        self.actor_lr_scheduler.step(achieve_chance)
+        #self.critic_lr_scheduler.step(achieve_chance)
+        #self.actor_lr_scheduler.step(achieve_chance)
         self.update_steps += 1
         return critic_loss.detach().cpu().numpy(), self.actor_loss.item()
     def evaluate(self, venv, reward_func, eval_episodes=10):
@@ -401,7 +403,7 @@ class TrainingExecutor:
                         done = True
                     ovr_dist += dist_traveled
                     reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1], next_state[5])
-                    self.network.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE))
+                    self.network.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE), done)
                     episode_reward += reward
                     episode_tw += tw
                     episode_dw += dw
@@ -486,7 +488,7 @@ class TrainingExecutor:
                     reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1],
                                                          next_state[5])
                     self.network.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE),
-                                               torch.tensor([reward]).to(DEVICE))
+                                               torch.tensor([reward]).to(DEVICE), done)
                     episode_reward += reward
                     episode_tw += tw
                     episode_dw += dw
