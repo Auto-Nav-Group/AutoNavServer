@@ -34,7 +34,7 @@ MAX_TIMESTEP = 500
 BATCH_SIZE = 512
 
 COLLISION_WEIGHT = -100
-TIME_WEIGHT = 0#-6
+TIME_WEIGHT = -1#-6
 FINISH_WEIGHT = 100
 DIST_WEIGHT = 0
 PASS_DIST_WEIGHT = 0
@@ -52,7 +52,7 @@ ACTION_DIM = 2
 ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 512
 
-ACTOR_LR = 1e-3
+ACTOR_LR = 1e-4
 ACTOR_LR_STEP_SIZE = 5e6
 ACTOR_LR_GAMMA = 0.1
 ACTOR_LR_WEIGHT_DECAY = 0.0001
@@ -60,7 +60,7 @@ ACTOR_LR_WEIGHT_DECAY = 0.0001
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 1e-4
+CRITIC_LR = 1e-8
 CRITIC_LR_STEP_SIZE = 5e6
 CRITIC_LR_GAMMA = 0.1
 CRITIC_LR_WEIGHT_DECAY = 0.0001
@@ -69,7 +69,7 @@ START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.99999
 TAU = 0.005
 
-START_NOISE = 0.75
+START_NOISE = 0.6
 END_NOISE = 0
 NOISE_DECAY_STEPS = 75000
 
@@ -291,8 +291,8 @@ class TD3(object):
         #Update networks
         if self.update_steps % self.policy_freq == 0:
             # Actor loss
-            actor_loss1, actor_loss2 = self.critic.forward((states, self.actor.forward(states)))
-            self.actor_loss = -(actor_loss1.mean()+actor_loss2.mean())/2
+            actor_loss = self.critic.q1((states, self.actor.forward(states)))
+            self.actor_loss = -actor_loss.mean()
             self.actor_optim.zero_grad()
             self.actor_loss.backward()
             self.actor_optim.step()
