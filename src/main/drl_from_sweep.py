@@ -1,8 +1,8 @@
 import sys
 
-from drl_networks_ddpg import TrainingExecutor
+from drl_networks_td3 import TrainingExecutor
 from generate_urdf_file_map import from_map, ASSET_PATH
-from drl_venv import DRL_VENV
+from drl_venv import RobotVEnv#DRL_VENV
 from map import Map
 import wandb
 import json
@@ -26,12 +26,12 @@ mapobj = Map(JSON)
 #onshape_to_robot.
 
 from_map(mapobj)
-DRL_VENV = DRL_VENV(map=mapobj, assets_path=ASSET_PATH)
+DRL_VENV = RobotVEnv(map=mapobj, assets_path=ASSET_PATH)
 
 
 config = wandb.config
 wandb.run.name = config.name
 
-TrainingExecutor = TrainingExecutor(mapobj)
+TrainingExecutor = TrainingExecutor(mapobj, config=config)
 
-TrainingExecutor.train(DRL_VENV, config=config, num_episodes=LEN, inpmap= mapobj, plotter_display=False)
+TrainingExecutor.train(DRL_VENV, config=config, total_ts=LEN, inpmap= mapobj, plotter_display=False)

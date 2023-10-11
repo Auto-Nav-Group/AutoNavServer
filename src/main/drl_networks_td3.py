@@ -29,7 +29,8 @@ EVAL_FREQ = -1
 POLICY_FREQ = 2
 VISUALIZER_ENABLED = False
 
-EPISODES = 30000
+#EPISODES = 30000
+TOTAL_TIMESTEPS = 300000
 MAX_TIMESTEP = 500
 BATCH_SIZE = 512
 
@@ -46,13 +47,13 @@ ANGLE_SPEED_WEIGHT = -0.5#-0.5
 MIN_DIST_WEIGHT = -0.5
 WALL_DIST = 0
 
-STATE_DIM = 9
+STATE_DIM = 8
 ACTION_DIM = 2
 
 ACTOR_LAYER_1 = 512
 ACTOR_LAYER_2 = 512
 
-ACTOR_LR = 1e-3
+ACTOR_LR = 1e-4
 ACTOR_LR_STEP_SIZE = 5e6
 ACTOR_LR_GAMMA = 0.1
 ACTOR_LR_WEIGHT_DECAY = 0.0001
@@ -60,7 +61,7 @@ ACTOR_LR_WEIGHT_DECAY = 0.0001
 CRITIC_LAYER_1 = 512
 CRITIC_LAYER_2 = 512
 
-CRITIC_LR = 1e-4
+CRITIC_LR = 1e-7
 CRITIC_LR_STEP_SIZE = 5e6
 CRITIC_LR_GAMMA = 0.1
 CRITIC_LR_WEIGHT_DECAY = 0.0001
@@ -69,7 +70,7 @@ START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.99999
 TAU = 0.005
 
-START_NOISE = 0.75
+START_NOISE = 0.6
 END_NOISE = 0
 NOISE_DECAY_STEPS = 75000
 
@@ -258,63 +259,68 @@ class TD3(object):
         d = lambda x: 1 if x is True else 0
         self.norm_mem.push(self.normalize_state(state), action, self.normalize_state(next_state), reward, torch.FloatTensor([d(done)]))
 
-    def update_parameters(self, batch_size, noise, step, achieve_chance):
-        if len(self.norm_mem) < batch_size:
-            return 0,0
-        batch = Transition(*zip(*self.norm_mem.sample(batch_size)))
-        states = torch.stack(batch.state).to(self.device).float()
-        next_states = torch.stack(batch.next_state).to(self.device).float()
-        actions = torch.stack(batch.action).to(self.device).float()
-        rewards = torch.stack(batch.reward).to(self.device).float()
-        dones = torch.stack(batch.done).to(self.device).float()
-        with torch.no_grad():
-            noise = torch.Tensor(actions).data.normal_(0, 0.2).to(self.device)
-            noise = noise.clamp(-0.5, 0.5)
-            next_actions = self.actor_target.forward(states)
-            next_actions = torch.clamp(next_actions+noise, -1, 1)
-        #Critic loss
-        QVal, QVal2 = self.critic((states, actions))
-        next_Q1, next_Q2 = self.critic_target((next_states, next_actions.detach()))
-        next_Q_min = torch.min(next_Q1, next_Q2)
-        QPrime = rewards + dones * GAMMA * next_Q_min
-        QPrime = QPrime.detach()
-    
-        closs1 = self.criterion(QVal, QPrime).float()
-        closs2 = self.criterion(QVal2, QPrime).float()
-        
-        critic_loss = closs1+closs2
+    def update_parameters(self, iters, batch_size, noise, step, achieve_chance):
+        c_loss = []
+        a_loss = []
+        for i in range(iters):
+            if len(self.norm_mem) < batch_size:
+                return 0,0
+            batch = Transition(*zip(*self.norm_mem.sample(batch_size)))
+            states = torch.stack(batch.state).to(self.device).float()
+            next_states = torch.stack(batch.next_state).to(self.device).float()
+            actions = torch.stack(batch.action).to(self.device).float()
+            rewards = torch.stack(batch.reward).to(self.device).float()
+            dones = torch.stack(batch.done).to(self.device).float()
+            with torch.no_grad():
+                noise = torch.Tensor(actions).data.normal_(0, 0.2).to(self.device)
+                noise = noise.clamp(-0.5, 0.5)
+                next_actions = self.actor_target.forward(states)
+                next_actions = torch.clamp(next_actions+noise, -1, 1)
+            #Critic loss
+            QVal, QVal2 = self.critic((states, actions))
+            next_Q1, next_Q2 = self.critic_target((next_states, next_actions.detach()))
+            next_Q_min = torch.min(next_Q1, next_Q2)
+            QPrime = rewards + dones * GAMMA * next_Q_min
+            QPrime = QPrime.detach()
 
-        self.critic_optim.zero_grad()
-        critic_loss.backward()
-        self.critic_optim.step()
+            closs1 = self.criterion(QVal, QPrime).float()
+            closs2 = self.criterion(QVal2, QPrime).float()
 
-        #Update networks
-        if self.update_steps % self.policy_freq == 0:
-            # Actor loss
-            actor_loss1, actor_loss2 = self.critic.forward((states, self.actor.forward(states)))
-            self.actor_loss = -(actor_loss1.mean()+actor_loss2.mean())/2
-            self.actor_optim.zero_grad()
-            self.actor_loss.backward()
-            self.actor_optim.step()
-            clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
+            critic_loss = closs1+closs2
 
+            self.critic_optim.zero_grad()
+            critic_loss.backward()
+            self.critic_optim.step()
+
+            #Update networks
+            if self.update_steps % self.policy_freq == 0:
+                # Actor loss
+                actor_loss1, actor_loss2 = self.critic.forward((states, self.actor.forward(states)))
+                self.actor_loss = -(actor_loss1.mean()+actor_loss2.mean())/2
+                self.actor_optim.zero_grad()
+                self.actor_loss.backward()
+                self.actor_optim.step()
+                clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
+
+                if self.config is None:
+                    self.soft_update(self.actor_target, self.actor, TAU)
+                else:
+                    self.soft_update(self.actor_target, self.actor, self.config.tau)
             if self.config is None:
-                self.soft_update(self.actor_target, self.actor, TAU)
+                self.soft_update(self.critic_target, self.critic, TAU)
             else:
-                self.soft_update(self.actor_target, self.actor, self.config.tau)
-        if self.config is None:
-            self.soft_update(self.critic_target, self.critic, TAU)
-        else:
-            self.soft_update(self.critic_target, self.critic, self.config.tau)
-        clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
+                self.soft_update(self.critic_target, self.critic, self.config.tau)
+            clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
 
 
-        #self.critic_lr_scheduler.step()
-        #self.actor_lr_scheduler.step()
-        #self.critic_lr_scheduler.step(achieve_chance)
-        #self.actor_lr_scheduler.step(achieve_chance)
-        self.update_steps += 1
-        return critic_loss.detach().cpu().numpy(), self.actor_loss.item()
+            #self.critic_lr_scheduler.step()
+            #self.actor_lr_scheduler.step()
+            #self.critic_lr_scheduler.step(achieve_chance)
+            #self.actor_lr_scheduler.step(achieve_chance)
+            self.update_steps += 1
+            c_loss.append(critic_loss.item())
+            a_loss.append(self.actor_loss.item())
+        return sum(c_loss)/len(c_loss), sum(a_loss)/len(a_loss)
     def evaluate(self, venv, reward_func, eval_episodes=10):
         avg_reward = 0
         achieve_rate = 0
@@ -339,8 +345,8 @@ class TD3(object):
 
 
 class TrainingExecutor:
-    def __init__(self, inpmap):
-        self.network = TD3(STATE_DIM, ACTION_DIM, DEVICE, inpmap)
+    def __init__(self, inpmap, config=None):
+        self.network = TD3(STATE_DIM, ACTION_DIM, DEVICE, inpmap, config)
         self.plotter = None
         self.logger = None
 
@@ -357,193 +363,20 @@ class TrainingExecutor:
         return vel*SPEED_WEIGHT+abs(anglevel)*ANGLE_SPEED_WEIGHT+d(min_dist)*MIN_DIST_WEIGHT+TIME_WEIGHT, (vel*SPEED_WEIGHT).item(), (abs(anglevel)*ANGLE_SPEED_WEIGHT).item(), d(min_dist)*MIN_DIST_WEIGHT
 
 
-    def train(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0, config=None, inpmap=None, plotter_display=True):
+    def train(self, env, total_ts=TOTAL_TIMESTEPS, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_ts=0, config=None, inpmap=None, plotter_display=True):
         if config is None:
             noise = OUNoise(ACTION_DIM, max_sigma=START_NOISE, min_sigma=END_NOISE, decay_period=NOISE_DECAY_STEPS)
             rewards = []
             self.logger = wandb.init(project="autonav", config=LOGGER_CONFIG, name="cuda-v1 test commit")
             if self.plotter is None:
-                self.plotter = Model_Plotter(num_episodes, plotter_display)
+                self.plotter = Model_Plotter(total_ts, plotter_display)
             visualizer = None
             if VISUALIZER_ENABLED:
                 visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
 
-            total_steps = 0
-            for episode in range(start_episode, num_episodes):
-                state, dist = env.reset()
-                if VISUALIZER_ENABLED:
-                    visualizer.start(state[1], state[2], state[3], state[4])
-                initdist = dist
-                initangle = state[1]
-                state = torch.FloatTensor(state).to(DEVICE)
-                noise.reset()
-                episode_reward = 0
-                episode_tw = 0
-                episode_dw = 0
-                episode_aw = 0
-                episode_achieve = 0
-                episode_collide = 0
-                episode_x = []
-                episode_y = []
-                episode_closs = []
-                episode_aloss = []
-                action_q = []
-                ovr_dist = 0
-
-                states = []
-                actions = []
-
-                for step in range(max_steps):
-                    nstate = self.network.normalize_state(state).to(DEVICE)
-                    action = self.network.get_action_with_noise(nstate, noise, total_steps)
-                    actions.append(action)
-                    states.append(state)
-                    next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
-                    if step == max_steps-1:
-                        done = True
-                    ovr_dist += dist_traveled
-                    reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1], next_state[5])
-                    self.network.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE), done)
-                    episode_reward += reward
-                    episode_tw += tw
-                    episode_dw += dw
-                    episode_aw += aw
-                    episode_x.append(next_state[1])
-                    episode_y.append(next_state[2])
-                    state = torch.FloatTensor(next_state).to(DEVICE)
-
-                    c_loss, a_loss = self.network.update_parameters(batch_size, noise, total_steps, self.plotter.get_achieve_chance(episode))
-                    episode_closs.append(c_loss)
-                    episode_aloss.append(a_loss)
-
-                    total_steps += 1
-                    if collision is True:
-                        episode_collide = 1
-                        done = True
-                    if achieved_goal is True:
-                        episode_achieve = 1
-                    if done:
-                        break
-
-                if VISUALIZER_ENABLED:
-                    states = torch.stack(states).to(self.network.device)
-                    actions = torch.stack(actions).to(self.network.device)
-                    action_q = self.network.critic.forward((states, actions))
-                    visualizer.clear()
-                    visualizer.update(episode_x, episode_y, action_q)
-                if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
-                    self.save(episode)
-                if EVAL_FREQ != -1 and (episode+1) % EVAL_FREQ == 0:
-                    eval_rew, eval_ac = self.network.evaluate(env, self.get_reward)
-                else:
-                    eval_rew = -1
-                    eval_ac = -1
-
-                rewards.append(episode_reward)
-                print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
-                self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw, episode_achieve, episode_collide, sum(episode_closs)/len(episode_closs), sum(episode_aloss)/len(episode_aloss), eval_rew, eval_ac)
-        else:
-            noise = OUNoise(ACTION_DIM, max_sigma=config.start_noise, min_sigma=END_NOISE, decay_period=config.noise_decay_steps)
-            rewards = []
-            if self.plotter is None:
-                self.plotter = Model_Plotter(num_episodes, plotter_display)
-            visualizer = None
-            if VISUALIZER_ENABLED:
-                visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
-            self.network = TD3(STATE_DIM, ACTION_DIM, DEVICE, inpmap, config=config)
-            total_steps = 0
-            for episode in range(start_episode, num_episodes):
-                state, dist = env.reset()
-                if VISUALIZER_ENABLED:
-                    visualizer.start(state[1], state[2], state[3], state[4])
-                initdist = dist
-                initangle = state[1]
-                state = torch.FloatTensor(state).to(DEVICE)
-                noise.reset()
-                episode_reward = 0
-                episode_tw = 0
-                episode_dw = 0
-                episode_aw = 0
-                episode_achieve = 0
-                episode_collide = 0
-                episode_x = []
-                episode_y = []
-                episode_closs = []
-                episode_aloss = []
-                action_q = []
-                ovr_dist = 0
-
-                states = []
-                actions = []
-
-                for step in range(max_steps):
-                    nstate = self.network.normalize_state(state).to(DEVICE)
-                    action = self.network.get_action_with_noise(nstate, noise, total_steps)
-                    actions.append(action)
-                    states.append(state)
-                    next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
-                    if step == max_steps - 1:
-                        done = True
-                    ovr_dist += dist_traveled
-                    reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1],
-                                                         next_state[5])
-                    self.network.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE),
-                                               torch.tensor([reward]).to(DEVICE), done)
-                    episode_reward += reward
-                    episode_tw += tw
-                    episode_dw += dw
-                    episode_aw += aw
-                    episode_x.append(next_state[1])
-                    episode_y.append(next_state[2])
-                    state = torch.FloatTensor(next_state).to(DEVICE)
-
-                    c_loss, a_loss = self.network.update_parameters(batch_size, noise, total_steps, self.plotter.get_achieve_chance(episode))
-                    episode_closs.append(c_loss)
-                    episode_aloss.append(a_loss)
-
-                    total_steps += 1
-                    if collision is True:
-                        episode_collide = 1
-                        done = True
-                    if achieved_goal is True:
-                        episode_achieve = 1
-                    if done:
-                        break
-
-                if VISUALIZER_ENABLED:
-                    states = torch.stack(states).to(self.network.device)
-                    actions = torch.stack(actions).to(self.network.device)
-                    action_q = self.network.critic.forward((states, actions))
-                    visualizer.clear()
-                    visualizer.update(episode_x, episode_y, action_q)
-                if SAVE_FREQ != -1 and episode % SAVE_FREQ == 0:
-                    self.save(episode)
-                if EVAL_FREQ != -1 and (episode+1) % EVAL_FREQ == 0:
-                    eval_rew, eval_ac = self.network.evaluate(env, self.get_reward)
-                else:
-                    eval_rew = -1
-                    eval_ac = -1
-
-                rewards.append(episode_reward)
-                print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
-                self.plotter.update(episode, initdist, episode_reward, episode_dw, episode_aw, episode_tw,
-                                    episode_achieve, episode_collide, sum(episode_closs) / len(episode_closs),
-                                    sum(episode_aloss) / len(episode_aloss), eval_rew, eval_ac)
-        wandb.finish()
-
-    def test(self, env, num_episodes=EPISODES, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_episode=0):
-        self.network.actor.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_actor.pth"))
-        self.network.actor_target.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_actor.pth"))
-        self.network.critic.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_critic.pth"))
-        self.network.critic_target.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_critic.pth"))
-        rewards = []
-        visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
-        for episode in range(start_episode, num_episodes):
-            state, dist = env.reset()
-            visualizer.start(state[1], state[2], state[3], state[4])
-            initdist = dist
-            initangle = state[1]
+            state, initdist = env.reset()
             state = torch.FloatTensor(state).to(DEVICE)
+            noise.reset()
             episode_reward = 0
             episode_tw = 0
             episode_dw = 0
@@ -552,22 +385,25 @@ class TrainingExecutor:
             episode_collide = 0
             episode_x = []
             episode_y = []
-            episode_closs = []
-            episode_aloss = []
             action_q = []
             ovr_dist = 0
+
             states = []
             actions = []
-            for step in range(max_steps):
+            ep_steps = 0
+            eps = 0
+            done = False
+            for timestep in range(start_ts, total_ts):
                 nstate = self.network.normalize_state(state).to(DEVICE)
-                action = self.network.get_action(nstate)
+                action = self.network.get_action_with_noise(nstate, noise, timestep)
                 actions.append(action)
                 states.append(state)
-                next_state, collision, done, achieved_goal, dist_traveled = env.step(action, step)
-                ovr_dist += dist_traveled
-                if step == max_steps - 1:
+                next_state, collision, done, achieved_goal, dist_traveled = env.step(action)
+                if ep_steps >= max_steps-1:
                     done = True
+                ovr_dist += dist_traveled
                 reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1], next_state[5])
+                self.network.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE), done)
                 episode_reward += reward
                 episode_tw += tw
                 episode_dw += dw
@@ -575,24 +411,224 @@ class TrainingExecutor:
                 episode_x.append(next_state[1])
                 episode_y.append(next_state[2])
                 state = torch.FloatTensor(next_state).to(DEVICE)
+                ep_steps+=1
                 if collision is True:
                     episode_collide = 1
                     done = True
                 if achieved_goal is True:
                     episode_achieve = 1
                 if done:
-                    break
-            states = torch.stack(states).to(self.network.device)
-            actions = torch.stack(actions).to(self.network.device)
-            action_q = self.network.critic.forward((states, actions))
-            visualizer.clear()
-            visualizer.update(episode_x, episode_y, action_q)
-            rewards.append(episode_reward)
-            print("Episode: " + str(episode) + " Reward: " + str(episode_reward))
+                    c_loss, a_loss = 0, 0
+                    if timestep != 0:
+                        c_loss, a_loss = self.network.update_parameters(ep_steps, batch_size, noise, timestep,
+                                                                        self.plotter.get_achieve_chance(timestep))
+                    if SAVE_FREQ != -1 and eps+1 % SAVE_FREQ == 0:
+                        self.save(timestep)
+                    if EVAL_FREQ != -1 and eps+1 % EVAL_FREQ == 0:
+                        eval_rew, eval_ac = self.network.evaluate(env, self.get_reward)
+                    else:
+                        eval_rew = -1
+                        eval_ac = -1
+                    self.plotter.update(eps, initdist, episode_reward, episode_dw, episode_aw, episode_tw,
+                                        episode_achieve, episode_collide, c_loss,
+                                        a_loss, eval_rew, eval_ac)
+
+                    print("Episode: " + str(eps) + " Reward: " + str(episode_reward))
+                    state, initdist = env.reset()
+                    state = torch.FloatTensor(state).to(DEVICE)
+                    noise.reset()
+                    episode_reward = 0
+                    episode_tw = 0
+                    episode_dw = 0
+                    episode_aw = 0
+                    episode_achieve = 0
+                    episode_collide = 0
+                    episode_x = []
+                    episode_y = []
+                    episode_closs = []
+                    episode_aloss = []
+                    action_q = []
+                    ovr_dist = 0
+
+                    states = []
+                    actions = []
+                    ep_steps = 0
+                    eps += 1
+                    if VISUALIZER_ENABLED:
+                        states = torch.stack(states).to(self.network.device)
+                        actions = torch.stack(actions).to(self.network.device)
+                        action_q = self.network.critic.forward((states, actions))
+                        visualizer.clear()
+                        visualizer.update(episode_x, episode_y, action_q)
+                        visualizer.start(state[1], state[2], state[3], state[4])
+                    done=False
+
+        else:
+            noise = OUNoise(ACTION_DIM, max_sigma=config.start_noise, min_sigma=END_NOISE, decay_period=NOISE_DECAY_STEPS)
+            rewards = []
+            self.logger = wandb.init(project="autonav", config=LOGGER_CONFIG, name="cuda-v1 test commit")
+            if self.plotter is None:
+                self.plotter = Model_Plotter(total_ts, plotter_display)
+            visualizer = None
+            if VISUALIZER_ENABLED:
+                visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
+
+            state, initdist = env.reset()
+            state = torch.FloatTensor(state).to(DEVICE)
+            noise.reset()
+            episode_reward = 0
+            episode_tw = 0
+            episode_dw = 0
+            episode_aw = 0
+            episode_achieve = 0
+            episode_collide = 0
+            episode_x = []
+            episode_y = []
+            action_q = []
+            ovr_dist = 0
+
+            states = []
+            actions = []
+            ep_steps = 0
+            eps = 0
+            done = False
+            for timestep in range(start_ts, total_ts):
+                nstate = self.network.normalize_state(state).to(DEVICE)
+                action = self.network.get_action_with_noise(nstate, noise, timestep)
+                actions.append(action)
+                states.append(state)
+                next_state, collision, done, achieved_goal, dist_traveled = env.step(action)
+                if ep_steps >= max_steps - 1:
+                    done = True
+                ovr_dist += dist_traveled
+                reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1],
+                                                     next_state[5])
+                self.network.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE),
+                                           torch.tensor([reward]).to(DEVICE), done)
+                episode_reward += reward
+                episode_tw += tw
+                episode_dw += dw
+                episode_aw += aw
+                episode_x.append(next_state[1])
+                episode_y.append(next_state[2])
+                state = torch.FloatTensor(next_state).to(DEVICE)
+                ep_steps += 1
+                if collision is True:
+                    episode_collide = 1
+                    done = True
+                if achieved_goal is True:
+                    episode_achieve = 1
+                if done:
+                    c_loss, a_loss = 0, 0
+                    if timestep != 0:
+                        c_loss, a_loss = self.network.update_parameters(ep_steps, batch_size, noise, timestep,
+                                                                        self.plotter.get_achieve_chance(timestep))
+                    if SAVE_FREQ != -1 and eps + 1 % SAVE_FREQ == 0:
+                        self.save(timestep)
+                    if EVAL_FREQ != -1 and eps + 1 % EVAL_FREQ == 0:
+                        eval_rew, eval_ac = self.network.evaluate(env, self.get_reward)
+                    else:
+                        eval_rew = -1
+                        eval_ac = -1
+                    self.plotter.update(eps, initdist, episode_reward, episode_dw, episode_aw, episode_tw,
+                                        episode_achieve, episode_collide, c_loss,
+                                        a_loss, eval_rew, eval_ac)
+
+                    print("Episode: " + str(eps) + " Reward: " + str(episode_reward))
+                    state, initdist = env.reset()
+                    state = torch.FloatTensor(state).to(DEVICE)
+                    noise.reset()
+                    episode_reward = 0
+                    episode_tw = 0
+                    episode_dw = 0
+                    episode_aw = 0
+                    episode_achieve = 0
+                    episode_collide = 0
+                    episode_x = []
+                    episode_y = []
+                    episode_closs = []
+                    episode_aloss = []
+                    action_q = []
+                    ovr_dist = 0
+
+                    states = []
+                    actions = []
+                    ep_steps = 0
+                    eps += 1
+                    if VISUALIZER_ENABLED:
+                        states = torch.stack(states).to(self.network.device)
+                        actions = torch.stack(actions).to(self.network.device)
+                        action_q = self.network.critic.forward((states, actions))
+                        visualizer.clear()
+                        visualizer.update(episode_x, episode_y, action_q)
+                        visualizer.start(state[1], state[2], state[3], state[4])
+                    done = False
+        wandb.finish()
+
+    def test(self, env, total_ts=TOTAL_TIMESTEPS, max_steps=MAX_TIMESTEP, batch_size=BATCH_SIZE, start_ts=0):
+        self.network.actor.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_actor.pth"))
+        self.network.actor_target.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_actor.pth"))
+        self.network.critic.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_critic.pth"))
+        self.network.critic_target.load_state_dict(torch.load(f"{FILE_LOCATION}/{FILE_NAME}/agent_critic.pth"))
+        rewards = []
+        visualizer = Model_Visualizer(env.basis.size.width, env.basis.size.height)
+        state, _ = env.reset()
+        state = torch.FloatTensor(state).to(DEVICE)
+        episode_reward = 0
+        episode_tw = 0
+        episode_dw = 0
+        episode_aw = 0
+        episode_x = []
+        episode_y = []
+        ovr_dist = 0
+        states = []
+        actions = []
+        for timestep in range(start_ts, total_ts):
+            nstate = self.network.normalize_state(state).to(DEVICE)
+            action = self.network.get_action(nstate)
+            actions.append(action)
+            states.append(state)
+            next_state, collision, done, achieved_goal, dist_traveled = env.step(action)
+            ovr_dist += dist_traveled
+            if timestep == max_steps - 1:
+                done = True
+            reward, tw, dw, aw = self.get_reward(done, collision, achieved_goal, action[0], action[1], next_state[5])
+            episode_reward += reward
+            episode_tw += tw
+            episode_dw += dw
+            episode_aw += aw
+            episode_x.append(next_state[1])
+            episode_y.append(next_state[2])
+            state = torch.FloatTensor(next_state).to(DEVICE)
+            if collision is True:
+                episode_collide = 1
+                done = True
+            if achieved_goal is True:
+                episode_achieve = 1
+            if done:
+                visualizer.clear()
+                states = torch.stack(states).to(self.network.device)
+                actions = torch.stack(actions).to(self.network.device)
+                action_q = self.network.critic.forward((states, actions))
+                visualizer.update(episode_x, episode_y, action_q)
+                state, _ = env.reset()
+                state = torch.FloatTensor(state).to(DEVICE)
+                visualizer.start(state[1], state[2], state[3], state[4])
+                episode_reward = 0
+                episode_tw = 0
+                episode_dw = 0
+                episode_aw = 0
+                episode_x = []
+                episode_y = []
+                ovr_dist = 0
+                states = []
+                actions = []
+                rewards.append(episode_reward)
+                print("Current Timestep: " + str(timestep) + " Reward: " + str(episode_reward))
 
 
 
-    def save(self, episode, filename=FILE_NAME, directory=FILE_LOCATION):
+    def save(self, timestep, filename=FILE_NAME, directory=FILE_LOCATION):
         if not os.path.exists(directory + "/" + filename):
             os.mkdir(directory + "/" + filename)
         if self.plotter is not None:
@@ -605,15 +641,15 @@ class TrainingExecutor:
             outfile.write(self.network.norm_mem.to_json())
         with open(f"{directory}/{filename}/core.json", "w") as outfile:
             json.dump({
-                "episode": episode
+                "episode": timestep
             }, outfile)
         torch.save(self.network.actor.state_dict(), f"{directory}/{filename}/agent_actor.pth")
         torch.save(self.network.critic.state_dict(), f"{directory}/{filename}/agent_critic.pth")
 
-    def load(self, episodes=EPISODES, filename=FILE_NAME, directory=FILE_LOCATION):
+    def load(self, timesteps=TOTAL_TIMESTEPS, filename=FILE_NAME, directory=FILE_LOCATION):
         with open(f"{directory}/{filename}/statistics.json", "r") as infile:
             stats = json.load(infile)
-            self.plotter = Model_Plotter(episodes)
+            self.plotter = Model_Plotter(timesteps)
             np_stats = {
                 "avg_y": np.asarray(stats["avg_y"]),
                 "dist_y": np.asarray(stats["dist_y"]),

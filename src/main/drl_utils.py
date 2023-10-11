@@ -396,9 +396,6 @@ class Model_Visualizer:
         self.goaly = goaly
         self.x = x
         self.y = y
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-        plt.pause(0.001)
     def update(self, x, y, q):
         q1, q2 = q
         qvals = []
@@ -512,9 +509,8 @@ class Normalizer:
             (2*state[3]/self.map.size.width),
             (2*state[4]/self.map.size.height),
             state[5]*2/self.max_mes,
-            state[6]*2/self.max_mes,
-            state[7],
-            state[8]
+            state[6],
+            state[7]
         ]
         return torch.FloatTensor(nstate)
 

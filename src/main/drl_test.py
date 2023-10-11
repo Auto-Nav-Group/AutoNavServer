@@ -1,8 +1,8 @@
-from drl_venv import DRL_VENV
+from drl_venv import RobotVEnv
 from generate_urdf_file_map import from_map, ASSET_PATH
 from drl_pathfinding import training_config, start_training_process
 from drl_network_simple import train, train_load
-from drl_networks_ddpg import TrainingExecutor
+from drl_networks_td3 import TrainingExecutor
 from map import Map
 #from onshape_to_robot import onshape_to_robot
 import json
@@ -25,7 +25,7 @@ mapobj = Map(JSON)
 #onshape_to_robot.
 
 from_map(mapobj)
-DRL_VENV = DRL_VENV(map=mapobj, assets_path=ASSET_PATH)
+DRL_VENV = RobotVEnv(map=mapobj, assets_path=ASSET_PATH)
 
 #config = training_config(save_model_path="G:\\Projects\\AutoNav\\AutoNavServer\\output\\drl\\model", batch_size=40, discount=0.999999, tau=0.005, policy_noise=0.2, noise_clip=0.5, policy_freq=2, exploration_noise=1, exploration_min=0.1, exploration_decay_steps=500000, max_episode_steps=1000)
 #start_training_process(config, DRL_VENV)
@@ -43,7 +43,7 @@ while True:
         te.train(DRL_VENV, plotter_display=False)
     elif inp == "L":
         e = te.load()
-        te.train(DRL_VENV, start_episode=e, plotter_display=False)
+        te.train(DRL_VENV, start_ts=e, plotter_display=False)
     elif inp == "R":
         te.test(DRL_VENV)
     time.sleep(1)
