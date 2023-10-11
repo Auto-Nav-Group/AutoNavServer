@@ -580,7 +580,7 @@ class RobotVEnv:
 
         for i in range(len(res)):
             result = res[i]
-            if result[0] > -1:
+            if result[0] > -1 and result[0] != self.goal:
                 hit_position = result[3]  # Get the collision point
                 start_point = start_positions[i]
                 distance_to_collision = math.sqrt(math.pow(hit_position[0] - start_point[0], 2) + math.pow(hit_position[1] - start_point[1], 2))

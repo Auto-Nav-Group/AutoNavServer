@@ -9,7 +9,7 @@ import json
 
 wandb.init(project="autonav")
 
-LEN = 2000
+LEN = 150000
 
 if sys.platform == "win32":
     path = 'G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\BasicMap.json'

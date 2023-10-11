@@ -24,7 +24,7 @@ else:
     print("SYSTEM NOT SUPPORTED. EXITING")
     exit()
 FILE_NAME = "SampleModel"
-SAVE_FREQ = 999
+SAVE_FREQ = -1
 EVAL_FREQ = -1
 POLICY_FREQ = 2
 VISUALIZER_ENABLED = False
