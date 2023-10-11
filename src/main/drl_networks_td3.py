@@ -31,7 +31,7 @@ VISUALIZER_ENABLED = False
 
 #EPISODES = 30000
 TOTAL_TIMESTEPS = 300000
-MAX_TIMESTEP = 500
+MAX_TIMESTEP = 100
 BATCH_SIZE = 512
 
 COLLISION_WEIGHT = -100
@@ -422,9 +422,9 @@ class TrainingExecutor:
                     if timestep != 0:
                         c_loss, a_loss = self.network.update_parameters(ep_steps, batch_size, noise, timestep,
                                                                         self.plotter.get_achieve_chance(timestep))
-                    if SAVE_FREQ != -1 and eps+1 % SAVE_FREQ == 0:
+                    if SAVE_FREQ != -1 and (eps+1) % SAVE_FREQ == 0:
                         self.save(timestep)
-                    if EVAL_FREQ != -1 and eps+1 % EVAL_FREQ == 0:
+                    if EVAL_FREQ != -1 and (eps+1) % EVAL_FREQ == 0:
                         eval_rew, eval_ac = self.network.evaluate(env, self.get_reward)
                     else:
                         eval_rew = -1
