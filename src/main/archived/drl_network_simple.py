@@ -14,7 +14,7 @@ from IPython import display
 import torch.optim as optim
 import random
 
-FILE_LOCATION = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\models"
+FILE_LOCATION = "/assets/drl/models"
 FILE_NAME = "SampleModel"
 
 ONE_SITUATION = True

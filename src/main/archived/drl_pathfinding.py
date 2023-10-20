@@ -1,11 +1,10 @@
 import torch
 import numpy as np
-from drl_networks import Actor, Critic, evaluate, TD3_NET
+from src.main.archived.drl_networks import evaluate, TD3_NET
 #from drl_venv import DRL_VENV
-from drl_utils import ReplayMemory
 
 
-OUTPUT_DIR = "G:\\Projects\\AutoNav\\AutoNavServer\\output\\drl"
+OUTPUT_DIR = "/output/drl"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 STATE_DIM = 4

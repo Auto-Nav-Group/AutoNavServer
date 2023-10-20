@@ -9,10 +9,11 @@ import json
 
 wandb.init(project="autonav")
 
-LEN = 150000
+LEN = 75000
 
 if sys.platform == "win32":
     path = 'G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\BasicMap.json'
+    logger_path = "G:\Projects\AutoNav\AutoNavServer\output\logs"
 elif sys.platform == "linux" or sys.platform == "linux2":
     path = '/home/jovyan/workspace/AutoNavServer/assets/testing/FRC2023Map.json'
 else:
@@ -32,6 +33,6 @@ DRL_VENV = RobotVEnv(map=mapobj, assets_path=ASSET_PATH)
 config = wandb.config
 wandb.run.name = config.name
 
-TrainingExecutor = TrainingExecutor(mapobj, config=config)
+TrainingExecutor = TrainingExecutor(mapobj, config=config, logger_path=logger_path)
 
 TrainingExecutor.train(DRL_VENV, config=config, total_ts=LEN, inpmap= mapobj, plotter_display=False)

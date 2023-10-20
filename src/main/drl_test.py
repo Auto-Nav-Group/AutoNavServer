@@ -1,7 +1,5 @@
 from drl_venv import RobotVEnv
 from generate_urdf_file_map import from_map, ASSET_PATH
-from drl_pathfinding import training_config, start_training_process
-from drl_network_simple import train, train_load
 from drl_networks_td3 import TrainingExecutor
 from map import Map
 #from onshape_to_robot import onshape_to_robot
@@ -11,7 +9,8 @@ import time
 
 
 if sys.platform == "win32":
-    path = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\BasicMap.json"
+    path = "G:/Projects/AutoNav/AutoNavServer/assets/testing/BasicMap.json"
+    logger_path = "G:\Projects\AutoNav\AutoNavServer\output\logs"
 elif sys.platform == "linux" or sys.platform == "linux2":
     path = "/home/jovyan/workspace/AutoNavServer/assets/testing/BasicMap.json"
 else:
@@ -32,19 +31,20 @@ DRL_VENV = RobotVEnv(map=mapobj, assets_path=ASSET_PATH)
 
 #train(DRL_VENV)
 
-te = TrainingExecutor(mapobj)
-te.train(DRL_VENV, plotter_display=False)
-"""while True:
+te = TrainingExecutor(mapobj, logger_path)
+#te.train(DRL_VENV, plotter_display=False)
+while True:
     inp = input("T - Train\n"
           "L - Load\n"
                 "R - Run\n")
     inp = inp.upper()
     if inp == "T":
         #train(DRL_VENV)
+
         te.train(DRL_VENV, plotter_display=False)
     elif inp == "L":
         e = te.load()
         te.train(DRL_VENV, start_ts=e, plotter_display=False)
     elif inp == "R":
-        te.test(DRL_VENV)
-    time.sleep(1)"""
+        te.train(DRL_VENV, test=True)
+    time.sleep(1)

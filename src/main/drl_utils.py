@@ -67,6 +67,9 @@ class ReplayMemory(object):
     def sample(self, batch_size):
         return random.sample(self.memory, min(batch_size, len(self.memory)))
 
+    def get(self):
+        return self.memory
+
     def to_json(self):
         json_dict = {
             "capacity": self.capacity,
@@ -80,11 +83,12 @@ class ReplayMemory(object):
         for i in range(len(json_dict["memory"])):
             state = torch.tensor(json_dict["memory"][i][0]).to(device)
             action = torch.tensor(json_dict["memory"][i][1]).to(device)
-            if (json_dict["memory"][i][2] == None):
+            if json_dict["memory"][i][2] is None:
                 next_state = None
             else: next_state = torch.tensor(json_dict["memory"][i][2]).to(device)
             reward = torch.tensor(json_dict["memory"][i][3]).to(device)
-            self.memory.append(Transition(state, action, next_state, reward))
+            done = torch.tensor(json_dict["memory"][i][4]).to(device)
+            self.memory.append(Transition(state, action, next_state, reward, done))
 
     def __len__(self):
         return len(self.memory)
@@ -105,8 +109,10 @@ class Model_Plotter():
     def __init__(
             self,
             episodes,
-            plotter_display=True
+            plotter_display=True,
+            mem=None
     ):
+        self.mem = mem
         if plotter_display is True:
             plt.ion()
         self.prev_total_reward = 0
@@ -224,7 +230,7 @@ class Model_Plotter():
             collision_prob = sum(recent_collisions)
 
             total = np.zeros(episode+1)
-            for i in range(episode+1):
+            for i in range(100):
                 if len(recent_achieves) == 0:
                     break
                 elif recent_achieves[i] == 1:
@@ -292,6 +298,24 @@ class Model_Plotter():
         except:
             print("Error in setting limits")
 
+        ytrue = []
+        ypred = []
+        """mem = Transition(*zip(*self.mem.get()))
+        states = list(mem.state)
+        next_states = list(mem.next_state)
+        s=0
+        if len(states) > 25:
+            s=len(states)-25
+        for i in range(s, len(states)):
+            ytrue.append((states[i][1].item(),states[i][2].item()))
+            ypred.append((next_states[i][1].item(),next_states[i][2].item()))"""
+        confusion_matrix = wandb.plot.confusion_matrix(
+            probs=None,
+            y_true=ytrue,
+            preds=ypred,
+            class_names=None
+        )
+
 
         if eval_rew == -1 and eval_ac == -1:
             wandb_params = {
@@ -301,8 +325,9 @@ class Model_Plotter():
                 "achieve_rate" : self.achieve_chance_y[episode],
                 "none_rate" : self.none_chance_y[episode],
                 "collision_rate" : self.collision_chance_y[episode],
-                "anglevel_reward" : self.dist_weight_y[episode],
-                "vel_reward" : self.time_weight_y[episode]
+                "vel_reward" : self.dist_weight_y[episode],
+                "anglevel_reward" : self.time_weight_y[episode],
+                "confusion_matrix" : confusion_matrix
             }
         else:
             wandb_params = {
@@ -312,8 +337,8 @@ class Model_Plotter():
                 "achieve_rate" : self.achieve_chance_y[episode],
                 "none_rate": self.none_chance_y[episode],
                 "collision_rate": self.collision_chance_y[episode],
-                "anglevel_reward" : self.dist_weight_y[episode],
-                "vel_reward" : self.time_weight_y[episode],
+                "vel_reward" : self.dist_weight_y[episode],
+                "anglevel_reward" : self.time_weight_y[episode],
                 "eval_reward" : eval_rew,
                 "eval_achieve_chance" : eval_ac
             }
@@ -378,6 +403,51 @@ class Model_Plotter():
     def get_achieve_chance(self, episode):
         return self.achieve_chance_y[episode]
 
+class Minima_Visualizer:
+    def __init__(self, sizex, sizey):
+        plt.ion()
+        self.fig = plt.figure(figsize=(sizex, sizey))
+        self.ax = self.fig.subplots(5)
+        self.sizex = sizex
+        self.sizey = sizey
+        self.x = 0
+        self.y = 0
+        self.goalx = 0
+        self.goaly = 0
+        #self.ax[0].set_xlim(-self.sizex/2, self.sizex/2)
+        #self.ax[0].set_ylim(-self.sizey/2, self.sizey/2)
+        self.vis = plt.figure(figsize=(sizex, sizey))
+        self.visax = self.vis.subplots()
+        self.visax.set_xlim(-self.sizex/2, self.sizex/2)
+        self.visax.set_ylim(-self.sizey/2, self.sizey/2)
+        self.shouldshow = True
+    def toggle(self):
+        if self.shouldshow:
+            self.hide()
+            return
+        else:
+            self.show()
+            return
+    def show(self):
+        self.shouldshow = True
+    def hide(self):
+        self.shouldshow = False
+    def generate(self, states, rewards, end_rewards):
+        for i in range(len(end_rewards)):
+            self.ax[0].plot(i, end_rewards[i][0].item(), 'ro', label="Total")
+            self.ax[1].plot(i, end_rewards[i][1], 'ro', label="Velocity")
+            self.ax[2].plot(i, end_rewards[i][2], 'ro', label="Angle")
+            self.ax[3].plot(i, end_rewards[i][3], 'ro', label="Time")
+            self.ax[4].plot(i, end_rewards[i][4], 'ro', label="Heading")
+        if len(rewards):
+            grad = list(Color("red").range_to(Color("green"), len(rewards)))
+            ordered_rewards = sorted(rewards)
+            for i in range(len(rewards)):
+                self.visax.scatter(states[i][2].item(), states[i][3].item(), color=grad[ordered_rewards.index(rewards[i])].hex)
+        if self.shouldshow:
+            self.fig.canvas.draw()
+            self.vis.canvas.draw()
+
 class Model_Visualizer:
     def __init__(self, sizex, sizey):
         plt.ion()
@@ -391,6 +461,18 @@ class Model_Visualizer:
         self.goaly = 0
         self.ax.set_xlim(-self.sizex/2, self.sizex/2)
         self.ax.set_ylim(-self.sizey/2, self.sizey/2)
+        self.shouldshow = True
+    def toggle(self):
+        if self.shouldshow:
+            self.hide()
+            return
+        else:
+            self.show()
+            return
+    def show(self):
+        self.shouldshow = True
+    def hide(self):
+        self.shouldshow = False
     def start(self, x, y, goalx, goaly):
         self.goalx = goalx
         self.goaly = goaly
@@ -407,16 +489,18 @@ class Model_Visualizer:
             self.ax.scatter(x[i], y[i], color=grad[ordered_q.index(qvals[i])].hex)
         self.ax.scatter(self.goalx, self.goaly, color='purple')
         self.ax.scatter(self.x, self.y, color='blue')
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-        plt.pause(0.001)
+        if self.shouldshow:
+            self.fig.canvas.draw()
+            self.fig.canvas.flush_events()
+            plt.pause(0.001)
     def clear(self):
         self.ax.clear()
         self.ax.set_xlim(-self.sizex/2, self.sizex/2)
         self.ax.set_ylim(-self.sizey/2, self.sizey/2)
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-        plt.pause(0.001)
+        if self.shouldshow:
+            self.fig.canvas.draw()
+            self.fig.canvas.flush_events()
+            plt.pause(0.001)
 
 
 class RandomProcess(object):
@@ -446,6 +530,7 @@ class AnnealedGaussianProcess(RandomProcess):
 
 class OUNoise(object):
     def __init__(self, action_space, mu=0.0, theta=0.15, max_sigma=0.3, min_sigma=0.3, decay_period=100000):
+        self.state = None
         self.mu = mu
         self.theta = theta
         self.sigma = max_sigma
@@ -469,6 +554,39 @@ class OUNoise(object):
         self.sigma = self.max_sigma - (self.max_sigma - self.min_sigma) * min(1.0, t / self.decay_period)
         return action.cpu().detach().numpy() + ou_state
 
+class EGreedyNoise:
+    def __init__(self, action_space, epsilon=0.1, mu=0.0, theta=0.15, max_sigma=0.3, min_sigma=0.3, decay_period=100000):
+        self.state = None
+        self.mu = mu
+        self.theta = theta
+        self.sigma = max_sigma
+        self.max_sigma = max_sigma
+        self.min_sigma = min_sigma
+        self.decay_period = decay_period
+        self.decay_step = 0
+        self.action_dim = action_space
+        self.epsilon = epsilon
+        self.initial_epsilon = epsilon
+        self.reset()
+
+    def reset(self):
+        self.state = np.ones(self.action_dim) * self.mu
+
+    def evolve_state(self):
+        x = self.state
+        dx = self.theta * (self.mu - x) + self.sigma * np.random.randn(self.action_dim)
+        self.state = x + dx
+        return self.state
+
+    def get_action(self, action, t=0):
+        if np.random.rand() < self.epsilon:
+            return action.cpu().detach().numpy()  # Choose the original action
+        else:
+            ou_state = self.evolve_state()
+            self.sigma = self.max_sigma - (self.max_sigma - self.min_sigma) * min(1.0, t / self.decay_period)
+            self.epsilon = self.initial_epsilon - (self.initial_epsilon * self.decay_step / self.decay_period)
+            self.decay_step += 1
+            return action.cpu().detach().numpy() + ou_state
 
 class Normalizer:
     def __init__(self, map):
@@ -504,11 +622,11 @@ class Normalizer:
         return nstate'''
         nstate = [
             (state[0]/np.pi),
-            (2*state[1]/self.map.size.width),
-            (2*state[2]/self.map.size.height),
-            (2*state[3]/self.map.size.width),
-            (2*state[4]/self.map.size.height),
-            state[5]*2/self.max_mes,
+            (state[1]/self.max_mes),
+            (2*state[2]/self.map.size.width),
+            (2*state[3]/self.map.size.height),
+            (2*state[4]/self.map.size.width),
+            (2*state[5]/self.map.size.height),
             state[6],
             state[7]
         ]
@@ -519,3 +637,49 @@ class Normalizer:
         for i in range(len(states)):
             nstates.append(self.NormalizeState(states[i]))
         return nstates
+
+class RewardFunction(object):
+    def __init__(self):
+        pass
+    def reset(self):
+        pass
+    def get_reward(self, *args):
+        pass
+
+class ProgressiveRewards(RewardFunction):
+    def __init__(self, angle_thresh, angle_decay, speed_weight, angle_speed_weight, hdg_weight, time_weight, closer_weight, closer_o_weight):
+        self.hdg_function = lambda x: 1/(angle_thresh*np.sqrt(2*np.pi)) * math.exp(-(x ** 2 / (2 * angle_thresh) ** 2))
+        self.hdg_decay_function = lambda x: angle_decay**(angle_thresh*x)
+        self.v_weight = speed_weight
+        self.anglev_weight = angle_speed_weight
+        self.hdg_weight = hdg_weight
+        self.time_weight = time_weight
+        self.closer_weight = closer_weight
+        self.closer_o_weight = closer_o_weight
+        self.closest = float('Inf')
+        self.closest_o = float('Inf')
+    def reset(self):
+        self.closest = float('Inf')
+        self.closest_o = float('Inf')
+
+    def get_reward(self, distance, min_dist, angle, avel, vel, time):
+        hdg_reward = self.hdg_function(angle/np.pi)*self.hdg_weight*self.hdg_decay_function(time)
+        vel_reward = self.v_weight*(1-vel)
+        angle_vel_reward = self.anglev_weight*abs(avel)
+        time_reward = self.time_weight
+        close_reward = 0
+        if self.closest == float('Inf'):
+            self.closest = distance
+            self.closest_o = min_dist
+        else:
+            if distance < self.closest:
+                r=1
+                if distance != 0: r = self.closest/distance
+                close_reward = self.closer_weight*r
+                self.closest = distance
+            if min_dist < self.closest_o:
+                r=1
+                if min_dist != 0: r = self.closest_o/min_dist
+                close_reward += self.closer_o_weight*r
+                self.closest_o = min_dist
+        return hdg_reward + vel_reward + angle_vel_reward + time_reward + close_reward, vel_reward.item(), angle_vel_reward.item(), time_reward, hdg_reward
