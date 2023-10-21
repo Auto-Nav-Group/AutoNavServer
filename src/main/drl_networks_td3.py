@@ -35,17 +35,17 @@ VISUALIZER_ENABLED = False
 OPTIMIZE = True
 
 DEBUG_SAME_SITUATION = False
-DEBUG_CIRCLE = False
+DEBUG_CIRCLE = True
 DEBUG_CRITIC = False
 
 #EPISODES = 30000
-TOTAL_TIMESTEPS = 50000
+TOTAL_TIMESTEPS = 1000000
 MAX_TIMESTEP = 100
-BATCH_SIZE = 16
+BATCH_SIZE = 64
 
 COLLISION_WEIGHT = -15
 NONE_WEIGHT = 0
-TIME_WEIGHT = -0.1#-6
+TIME_WEIGHT = -0.075#-6
 FINISH_WEIGHT = 10
 DIST_WEIGHT = 0.025
 PASS_DIST_WEIGHT = 0
@@ -58,26 +58,26 @@ ANGLE_SPEED_WEIGHT = -0.5#-0.5
 MIN_DIST_WEIGHT = 0
 WALL_DIST = 0
 ANGLE_DECAY = 1
-CLOSER_WEIGHT = 1
-CLOSER_O_WEIGHT = -1
+CLOSER_WEIGHT = 2
+CLOSER_O_WEIGHT = -2
 hdg_function = lambda x: 1/(ANGLE_THRESH*np.sqrt(2*np.pi)) * math.exp(-(x ** 2 / (2 * ANGLE_THRESH) ** 2))
 hdg_decay_function = lambda x: ANGLE_DECAY**(ANGLE_THRESH*x)
 
 STATE_DIM = 8
 ACTION_DIM = 2
 
-ACTOR_LAYER_1 = 32
-ACTOR_LAYER_2 = 32
+ACTOR_LAYER_1 = 128
+ACTOR_LAYER_2 = 128
 
 ACTOR_LR = 1e-4
 ACTOR_LR_STEP_SIZE = 5e6
 ACTOR_LR_GAMMA = 0.1
 ACTOR_LR_WEIGHT_DECAY = 0.0001
 
-CRITIC_LAYER_1 = 128
-CRITIC_LAYER_2 = 128
+CRITIC_LAYER_1 = 256
+CRITIC_LAYER_2 = 256
 
-CRITIC_LR = 1e-4
+CRITIC_LR = 1e-5
 CRITIC_LR_STEP_SIZE = 5e6
 CRITIC_LR_GAMMA = 0.1
 CRITIC_LR_WEIGHT_DECAY = 0.0001
@@ -463,25 +463,26 @@ class TrainingExecutor:
         circle = False
         pre_rewards = []
 
-        pretrain_mem = ReplayMemory(10000)
-        total = 0
-        doneconversion = lambda x: 0 if x is True else 1
-        while circle is False:
-            state, distance, min_dist, circle = env.debug_circle_reset()
-            state = torch.FloatTensor(state).to(self.network.device)
-            if circle is True:
-                break
-            for ts in range(100):
-                action = torch.FloatTensor([0, 1]).to(self.network.device)
-                next_state, collision, done, achieved_goal, dist_traveled, min_dist = env.step(action)
-                reward, vw, avw, tw, aw = rewardfunc.get_reward(next_state[1], min_dist, next_state[0], action[0],
-                                                                action[1], ts)
-                pretrain_mem.push(state, action, torch.FloatTensor(next_state).to(self.network.device), torch.FloatTensor([reward.item()]).to(self.network.device), torch.FloatTensor([doneconversion(done)]).to(self.network.device))
-                total += 1
-                state = torch.FloatTensor(next_state).to(self.network.device)
-                if done:
+        if not DEBUG_CIRCLE:
+            pretrain_mem = ReplayMemory(10000)
+            total = 0
+            doneconversion = lambda x: 0 if x is True else 1
+            while circle is False:
+                state, distance, min_dist, circle = env.debug_circle_reset()
+                state = torch.FloatTensor(state).to(self.network.device)
+                if circle is True:
                     break
-        self.network.update_parameters(total, total, noise, 0, 0, mem=pretrain_mem)
+                for ts in range(100):
+                    action = torch.FloatTensor([0, 1]).to(self.network.device)
+                    next_state, collision, done, achieved_goal, dist_traveled, min_dist = env.step(action)
+                    reward, vw, avw, tw, aw = rewardfunc.get_reward(next_state[1], min_dist, next_state[0], action[0],
+                                                                    action[1], ts)
+                    pretrain_mem.push(state, action, torch.FloatTensor(next_state).to(self.network.device), torch.FloatTensor([reward.item()]).to(self.network.device), torch.FloatTensor([doneconversion(done)]).to(self.network.device))
+                    total += 1
+                    state = torch.FloatTensor(next_state).to(self.network.device)
+                    if done:
+                        break
+            self.network.update_parameters(total, total, noise, 0, 0, mem=pretrain_mem)
         if DEBUG_CIRCLE:
             circle_visualizer = Minima_Visualizer(env.basis.size.width, env.basis.size.height)
             state, initdist, min_dist, circle_visualizer.shouldshow = env.debug_circle_reset()

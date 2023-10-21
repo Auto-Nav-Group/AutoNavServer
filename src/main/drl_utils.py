@@ -673,13 +673,14 @@ class ProgressiveRewards(RewardFunction):
             self.closest_o = min_dist
         else:
             if distance < self.closest:
-                r=1
-                if distance != 0: r = self.closest/distance
+                r = self.closest-distance
                 close_reward = self.closer_weight*r
                 self.closest = distance
             if min_dist < self.closest_o:
-                r=1
-                if min_dist != 0: r = self.closest_o/min_dist
+                if min_dist != 0:
+                    r = self.closest_o/min_dist
+                else:
+                    r = 10
                 close_reward += self.closer_o_weight*r
                 self.closest_o = min_dist
         return hdg_reward + vel_reward + angle_vel_reward + time_reward + close_reward, vel_reward.item(), angle_vel_reward.item(), time_reward, hdg_reward

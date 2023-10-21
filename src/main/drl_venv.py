@@ -11,7 +11,7 @@ import math
 
 TIME_DELTA = 0.1 # Time setup in simulation
 GUI = False # GUI flag
-GOAL_REACHED_DIST = 0.75 # Distance to goal to be considered reached
+GOAL_REACHED_DIST = 1 # Distance to goal to be considered reached
 MIN_START_DIST = 4 # Minimum distance from start to goal
 MAX_SPEED = 5 # Maximum speed of the robot
 MAX_ANGULAR_SPEED = math.pi # Maximum angular speed of the robot
