@@ -16,6 +16,7 @@ if sys.platform == "win32":
     logger_path = "G:\Projects\AutoNav\AutoNavServer\output\logs"
 elif sys.platform == "linux" or sys.platform == "linux2":
     path = '/home/jovyan/workspace/AutoNavServer/assets/testing/FRC2023Map.json'
+    logger_path = '/home/jovyan/workspace/AutoNavServer/output/logs'
 else:
     print("SYSTEM NOT SUPPORTED. EXITING")
     exit()
