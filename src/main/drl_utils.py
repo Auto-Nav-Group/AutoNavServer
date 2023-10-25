@@ -141,6 +141,10 @@ class Model_Plotter():
         self.c_loss_y = np.zeros(episodes)
         self.a_loss_x = np.arange(episodes)
         self.a_loss_y = np.zeros(episodes)
+        self.closer_a_y = np.zeros(episodes)
+        self.closer_a_x = np.arange(episodes)
+        self.closer_y = np.zeros(episodes)
+        self.closer_x = np.arange(episodes)
 
         if plotter_display is True:
             self.fig, self.ax = plt.subplots(7, figsize=(10,6))
@@ -175,7 +179,9 @@ class Model_Plotter():
         c_loss_y,
         a_loss_y,
         eval_rew,
-        eval_ac
+        eval_ac,
+        closer_a_y,
+        closer_y
     ):
         if self.total_reward_y[99]==self.prev_total_reward or episode > 99:
             self.total_reward_y = np.delete(self.total_reward_y, 0)
@@ -262,6 +268,9 @@ class Model_Plotter():
         self.c_loss_y.put(episode, c_loss_y)
         self.a_loss_y.put(episode, a_loss_y)
 
+        self.closer_y.put(episode, closer_y)
+        self.closer_a_y.put(episode, closer_a_y)
+
         if self.show is True:
             self.total_reward_line.set_data(self.total_reward_x, self.total_reward_y)
             self.avg_line.set_data(self.avg_x, self.avg_y)
@@ -327,6 +336,8 @@ class Model_Plotter():
                 "collision_rate" : self.collision_chance_y[episode],
                 "vel_reward" : self.dist_weight_y[episode],
                 "anglevel_reward" : self.time_weight_y[episode],
+                "closer_obstacle_reward" : self.closer_a_y[episode],
+                "closer_reward" : self.closer_y[episode],
                 "confusion_matrix" : confusion_matrix
             }
         else:
@@ -668,6 +679,7 @@ class ProgressiveRewards(RewardFunction):
         angle_vel_reward = self.anglev_weight*abs(avel)
         time_reward = self.time_weight
         close_reward = 0
+        close_o_reward = 0
         if self.closest == float('Inf'):
             self.closest = distance
             self.closest_o = min_dist
@@ -681,6 +693,6 @@ class ProgressiveRewards(RewardFunction):
                     r = self.closest_o/min_dist
                 else:
                     r = 10
-                close_reward += self.closer_o_weight*r
+                close_o_reward = self.closer_o_weight*r
                 self.closest_o = min_dist
-        return hdg_reward + vel_reward + angle_vel_reward + time_reward + close_reward, vel_reward.item(), angle_vel_reward.item(), time_reward, hdg_reward
+        return hdg_reward + vel_reward + angle_vel_reward + time_reward + close_reward + close_o_reward, vel_reward.item(), angle_vel_reward.item(), time_reward, hdg_reward, close_o_reward, close_reward

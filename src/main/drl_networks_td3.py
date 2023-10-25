@@ -30,18 +30,18 @@ else:
 FILE_NAME = "SampleModel"
 SAVE_FREQ = 999
 EVAL_FREQ = -1
-POLICY_FREQ = 4
+POLICY_FREQ = 12
 VISUALIZER_ENABLED = False
 OPTIMIZE = True
 
 DEBUG_SAME_SITUATION = False
-DEBUG_CIRCLE = True
+DEBUG_CIRCLE = False
 DEBUG_CRITIC = False
 
 #EPISODES = 30000
-TOTAL_TIMESTEPS = 1000000
+TOTAL_TIMESTEPS = 10000000
 MAX_TIMESTEP = 100
-BATCH_SIZE = 64
+BATCH_SIZE = 50
 
 COLLISION_WEIGHT = -15
 NONE_WEIGHT = 0
@@ -58,8 +58,8 @@ ANGLE_SPEED_WEIGHT = -0.5#-0.5
 MIN_DIST_WEIGHT = 0
 WALL_DIST = 0
 ANGLE_DECAY = 1
-CLOSER_WEIGHT = 2
-CLOSER_O_WEIGHT = -2
+CLOSER_WEIGHT = 1
+CLOSER_O_WEIGHT = -1
 hdg_function = lambda x: 1/(ANGLE_THRESH*np.sqrt(2*np.pi)) * math.exp(-(x ** 2 / (2 * ANGLE_THRESH) ** 2))
 hdg_decay_function = lambda x: ANGLE_DECAY**(ANGLE_THRESH*x)
 
@@ -67,28 +67,28 @@ STATE_DIM = 8
 ACTION_DIM = 2
 
 ACTOR_LAYER_1 = 128
-ACTOR_LAYER_2 = 128
+ACTOR_LAYER_2 = 64
 
-ACTOR_LR = 1e-4
+ACTOR_LR = 1e-3
 ACTOR_LR_STEP_SIZE = 5e6
 ACTOR_LR_GAMMA = 0.1
 ACTOR_LR_WEIGHT_DECAY = 0.0001
 
 CRITIC_LAYER_1 = 256
-CRITIC_LAYER_2 = 256
+CRITIC_LAYER_2 = 128
 
-CRITIC_LR = 1e-5
+CRITIC_LR = 1e-6
 CRITIC_LR_STEP_SIZE = 5e6
 CRITIC_LR_GAMMA = 0.1
 CRITIC_LR_WEIGHT_DECAY = 0.0001
 
 START_WEIGHT_THRESHOLD = 3e-3
-GAMMA = 0.99
+GAMMA = 0.9999
 TAU = 0.005
 
-START_NOISE = 0.2
-END_NOISE = 0
-NOISE_DECAY_STEPS = 50000
+START_NOISE = 1
+END_NOISE = 0.1
+NOISE_DECAY_STEPS = 200000
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -246,17 +246,17 @@ class TD3(object):
 
         self.actor = Actor(state_dim, action_dim).to(self.device)
         self.actor_target = Actor(state_dim, action_dim).to(self.device)
-        self.actor_optim = optim.Adam(self.actor.parameters(), lr=self.actor_lr)
+        self.actor_optim = optim.AdamW(self.actor.parameters(), lr=self.actor_lr)
 
         self.critic = Critic(state_dim, action_dim).to(self.device)
         self.critic_target = Critic(state_dim, action_dim).to(self.device)
-        self.critic_optim = optim.Adam(self.critic.parameters(), lr=self.critic_lr)
+        self.critic_optim = optim.AdamW(self.critic.parameters(), lr=self.critic_lr)
 
         self.hard_update(self.actor_target, self.actor)
         self.hard_update(self.critic_target, self.critic)
 
         self.norm_mem = ReplayMemory(10000000)
-        self.criterion = f.mse_loss
+        self.criterion = f.huber_loss
 
         self.normalizer = Normalizer(inpmap)
 
@@ -332,7 +332,7 @@ class TD3(object):
                 self.actor_optim.zero_grad()
                 self.actor_loss.backward()
                 self.actor_optim.step()
-                clip_grad_norm_(self.actor.parameters(), max_norm=10)
+                clip_grad_norm_(self.actor.parameters(), max_norm=10000)
 
                 if self.config is None:
                     self.soft_update(self.actor_target, self.actor, TAU)
@@ -342,7 +342,7 @@ class TD3(object):
                 self.soft_update(self.critic_target, self.critic, TAU)
             else:
                 self.soft_update(self.critic_target, self.critic, self.config.tau)
-            clip_grad_norm_(self.critic.parameters(), max_norm=10)
+            clip_grad_norm_(self.critic.parameters(), max_norm=10000)
 
 
             #self.critic_lr_scheduler.step()
@@ -475,7 +475,7 @@ class TrainingExecutor:
                 for ts in range(100):
                     action = torch.FloatTensor([0, 1]).to(self.network.device)
                     next_state, collision, done, achieved_goal, dist_traveled, min_dist = env.step(action)
-                    reward, vw, avw, tw, aw = rewardfunc.get_reward(next_state[1], min_dist, next_state[0], action[0],
+                    reward, vw, avw, tw, aw, caw, cw = rewardfunc.get_reward(next_state[1], min_dist, next_state[0], action[0],
                                                                     action[1], ts)
                     pretrain_mem.push(state, action, torch.FloatTensor(next_state).to(self.network.device), torch.FloatTensor([reward.item()]).to(self.network.device), torch.FloatTensor([doneconversion(done)]).to(self.network.device))
                     total += 1
@@ -495,6 +495,8 @@ class TrainingExecutor:
         episode_avw = 0
         episode_tw = 0
         episode_aw = 0
+        episode_cw = 0
+        episode_caw = 0
         episode_achieve = 0
         episode_collide = 0
         episode_x = []
@@ -530,7 +532,7 @@ class TrainingExecutor:
             if ep_steps >= max_steps-1:
                 done = True
             ovr_dist += dist_traveled
-            reward, vw, avw, tw, aw = rewardfunc.get_reward(next_state[1], min_dist, next_state[0], action[0], action[1], ep_steps)
+            reward, vw, avw, tw, aw, caw, cw = rewardfunc.get_reward(next_state[1], min_dist, next_state[0], action[0], action[1], ep_steps)
             #reward, vw, avw, aw = self.get_reward_beta(done, collision, achieved_goal, next_state[1], next_state[0])
             rewards.append(reward)
             self.network.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE), done)
@@ -539,6 +541,8 @@ class TrainingExecutor:
             episode_avw += avw
             episode_tw += tw
             episode_aw += aw
+            episode_cw += cw
+            episode_caw += caw
             episode_x.append(next_state[2])
             episode_y.append(next_state[3])
             state = torch.FloatTensor(next_state).to(DEVICE)
@@ -566,7 +570,7 @@ class TrainingExecutor:
                         eval_ac = -1
                     self.plotter.update(eps, initdist, episode_reward, episode_vw, episode_avw, episode_tw,
                                         episode_achieve, episode_collide, c_loss,
-                                        a_loss, eval_rew, eval_ac)
+                                        a_loss, eval_rew, eval_ac, episode_caw, episode_cw)
                 print("Episode: " + str(eps) + " Reward: " + str(episode_reward))
                 if DEBUG_CIRCLE:
                     state, initdist, min_dist, circle_visualizer.shouldshow = env.debug_circle_reset()
@@ -596,6 +600,8 @@ class TrainingExecutor:
                 episode_avw = 0
                 episode_tw = 0
                 episode_aw = 0
+                episode_cw = 0
+                episode_caw = 0
                 episode_achieve = 0
                 episode_collide = 0
                 episode_x = []
