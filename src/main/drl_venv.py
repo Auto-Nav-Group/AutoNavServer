@@ -501,7 +501,7 @@ class RobotVEnv:
         # return robot_state, reward, done, target
         return robot_state, collision, done, achieved_goal, dist_traveled, self._run_lidar()
 
-    def reset(self, reload=False, angle=-1): # Create a new environment
+    def reset(self, reload=False, angle=-1, load_state=None): # Create a new environment
         p.resetSimulation()
         p.setGravity(0, 0, -GRAVITY)
         p.setTimeStep(0.01)
@@ -523,7 +523,14 @@ class RobotVEnv:
         for i in range(len(self.environment_ids)):
             self.environment_dim += p.getNumJoints(self.environment_ids[i])
 
-        if reload:
+        if load_state is not None:
+            self.goal_x = load_state[4]
+            self.goal_y = load_state[5]
+            self.x = load_state[2]
+            self.y = load_state[3]
+            self.start_angle = load_state[0]
+            self._reset_situation(np.pi, new_goal=False, new_angle=False, new_start=False)
+        elif reload:
             if angle != -1:
                 self._reset_situation(np.pi, new_goal=False, new_angle=True, new_start=False, set_angle=angle)
             else:

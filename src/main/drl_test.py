@@ -1,6 +1,6 @@
 from drl_venv import RobotVEnv
 from generate_urdf_file_map import from_map, ASSET_PATH
-from drl_networks_td3 import TrainingExecutor
+from drl_training_executor import TrainingExecutor
 from map import Map
 #from onshape_to_robot import onshape_to_robot
 import json
@@ -13,6 +13,7 @@ if sys.platform == "win32":
     logger_path = "G:\Projects\AutoNav\AutoNavServer\output\logs"
 elif sys.platform == "linux" or sys.platform == "linux2":
     path = "/home/jovyan/workspace/AutoNavServer/assets/testing/BasicMap.json"
+    logger_path = "/home/jovyan/workspace/AutoNavServer/output/logs"
 else:
     print("SYSTEM NOT SUPPORTED. EXITING")
     exit()

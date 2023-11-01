@@ -589,12 +589,12 @@ class EGreedyNoise:
         self.state = x + dx
         return self.state
 
-    def get_action(self, action, t=0):
+    def get_action(self, action):
         if np.random.rand() < self.epsilon:
             return action.cpu().detach().numpy()  # Choose the original action
         else:
             ou_state = self.evolve_state()
-            self.sigma = self.max_sigma - (self.max_sigma - self.min_sigma) * min(1.0, t / self.decay_period)
+            self.sigma = self.max_sigma - (self.max_sigma - self.min_sigma) * min(1.0, self.decay_step / self.decay_period)
             self.epsilon = self.initial_epsilon - (self.initial_epsilon * self.decay_step / self.decay_period)
             self.decay_step += 1
             return action.cpu().detach().numpy() + ou_state

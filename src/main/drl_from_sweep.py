@@ -1,6 +1,6 @@
 import sys
 
-from drl_networks_td3 import TrainingExecutor
+from drl_training_executor import TrainingExecutor
 from generate_urdf_file_map import from_map, ASSET_PATH
 from drl_venv import RobotVEnv#DRL_VENV
 from map import Map
@@ -9,7 +9,7 @@ import json
 
 wandb.init(project="autonav")
 
-LEN = 75000
+LEN = 150000
 
 if sys.platform == "win32":
     path = 'G:\\Projects\\AutoNav\\AutoNavServer\\assets\\testing\\BasicMap.json'
@@ -31,7 +31,6 @@ DRL_VENV = RobotVEnv(map=mapobj, assets_path=ASSET_PATH)
 
 
 config = wandb.config
-wandb.run.name = config.name
 
 TrainingExecutor = TrainingExecutor(mapobj, config=config, logger_path=logger_path)
 
