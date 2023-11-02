@@ -8,7 +8,7 @@ from drl_networks import SAC, TD3, DEVICE
 from logger import logger
 
 
-TOTAL_TIMESTEPS = 10000000
+TOTAL_TIMESTEPS = 1000000
 MAX_TIMESTEP = 100
 BATCH_SIZE = 50
 SAVE_FREQ = 999
