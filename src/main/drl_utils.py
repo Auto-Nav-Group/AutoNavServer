@@ -685,7 +685,10 @@ class ProgressiveRewards(RewardFunction):
             self.closest_o = min_dist
         else:
             if distance < self.closest:
-                r = self.closest-distance
+                if distance != 0:
+                    r = self.closest/distance
+                else:
+                    r = 10
                 close_reward = self.closer_weight*r
                 self.closest = distance
             if min_dist < self.closest_o:
