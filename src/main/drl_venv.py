@@ -1,5 +1,4 @@
 import torch
-import gym
 from drl_utils import Quaternion, ReplayMemory, ObjectState
 import pybullet as p
 import pybullet_data

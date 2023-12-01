@@ -10,12 +10,15 @@ from torch.nn import init
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 from torch.distributions import Normal
 from drl_utils import ReplayMemory, Transition, NumpyArrayEncoder, Model_Plotter, Normalizer
+from torch.cuda.amp import GradScaler, autocast
 import torch.optim as optim
 
 if sys.platform == "win32":
     FILE_LOCATION = "G:/Projects/AutoNav/AutoNavServer/assets/drl/models"
 elif sys.platform == "linux" or sys.platform == "linux2":
     FILE_LOCATION = "/home/jovyan/workspace/AutoNavServer/assets/drl/models"
+elif sys.platform == "darwin":
+    FILE_LOCATION = "/Users/maximkudryashov/Projects/AutoNav/AutoNavServer/assets/drl/models"
 else:
     print("SYSTEM NOT SUPPORTED. EXITING")
     exit()
@@ -245,6 +248,7 @@ class TD3(object):
         if batch_size is None:
             batch_size = self.batch_size
         if mem is None: mem = self.mem
+        scaler = GradScaler()
         for i in range(iters):
             if len(mem) < batch_size:
                 return 0, 0
@@ -254,54 +258,57 @@ class TD3(object):
             actions = torch.stack(batch.action).to(self.device).float()
             rewards = torch.stack(batch.reward).to(self.device).float()
             dones = torch.stack(batch.done).to(self.device).float()
-            with torch.no_grad():
+            with autocast():
                 noise = torch.Tensor(actions).data.normal_(0, 0.2).to(self.device)
                 noise = noise.clamp(-0.5, 0.5)
                 next_actions = self.actor_target.forward(states)
                 next_actions = torch.clamp(next_actions + noise, -1, 1)
-            # Critic loss
-            QVal, QVal2 = self.critic((states, actions))
-            next_Q1, next_Q2 = self.critic_target((next_states, next_actions.detach()))
-            next_Q_min = torch.min(next_Q1, next_Q2)
-            QPrime = rewards + dones * GAMMA * next_Q_min
-            QPrime = QPrime.detach()
 
-            closs1 = self.criterion(QVal, QPrime).float()
-            closs2 = self.criterion(QVal2, QPrime).float()
+            with autocast():
+                QVal, QVal2 = self.critic((states, actions))
+                next_Q1, next_Q2 = self.critic_target((next_states, next_actions.detach()))
+                next_Q_min = torch.min(next_Q1, next_Q2)
+                QPrime = rewards + dones * GAMMA * next_Q_min
+                QPrime = QPrime.detach()
 
-            critic_loss = closs1 + closs2
+                closs1 = self.criterion(QVal, QPrime).float()
+                closs2 = self.criterion(QVal2, QPrime).float()
 
-            self.critic_optim.zero_grad()
-            critic_loss.backward()
-            self.critic_optim.step()
+                critic_loss = closs1 + closs2
 
-            # Update networks
-            if self.update_steps % self.policy_freq == 0:
-                # Actor loss
-                actor_loss = self.critic.q1((states, self.actor.forward(states)))
-                self.actor_loss = -actor_loss.mean()
-                self.actor_optim.zero_grad()
-                self.actor_loss.backward()
-                self.actor_optim.step()
-                clip_grad_norm_(self.actor.parameters(), max_norm=10000)
+                self.critic_optim.zero_grad()
+                scaler.scale(critic_loss).backward()
+                scaler.unscale_(self.critic_optim)
+                clip_grad_norm_(self.critic.parameters(), max_norm=10000)
+                scaler.step(self.critic_optim)
+                scaler.update()
 
-                if self.config is None:
-                    self.soft_update(self.actor_target, self.actor, TAU)
-                else:
-                    self.soft_update(self.actor_target, self.actor, self.config.tau)
+                if self.update_steps % self.policy_freq == 0:
+                    # Actor loss
+                    actor_loss = self.critic.q1((states, self.actor.forward(states)))
+                    self.actor_loss = -actor_loss.mean()
+                    self.actor_optim.zero_grad()
+                    scaler.scale(self.actor_loss).backward()
+                    scaler.unscale_(self.actor_optim)
+                    clip_grad_norm_(self.actor.parameters(), max_norm=10000)
+                    scaler.step(self.actor_optim)
+                    scaler.update()
+
+                    if self.config is None:
+                        self.soft_update(self.actor_target, self.actor, TAU)
+                    else:
+                        self.soft_update(self.actor_target, self.actor, self.config.tau)
+
             if self.config is None:
                 self.soft_update(self.critic_target, self.critic, TAU)
             else:
                 self.soft_update(self.critic_target, self.critic, self.config.tau)
-            clip_grad_norm_(self.critic.parameters(), max_norm=10000)
 
             self.critic_lr_scheduler.step()
             self.actor_lr_scheduler.step()
-            #self.critic_lr_scheduler.step(achieve_chance)
-            #self.actor_lr_scheduler.step(achieve_chance)
             self.update_steps += 1
-            c_loss+=critic_loss.item()
-            a_loss+=self.actor_loss.item()
+            c_loss += critic_loss.item()
+            a_loss += self.actor_loss.item()
         return c_loss / iters, a_loss / iters
 
 

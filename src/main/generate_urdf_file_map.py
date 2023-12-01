@@ -6,6 +6,8 @@ if sys.platform == "win32":
     ASSET_PATH = "G:\\Projects\\AutoNav\\AutoNavServer\\assets\\drl\\generate_map_files"
 elif sys.platform == "linux" or sys.platform == "linux2":
     ASSET_PATH = '/home/jovyan/workspace/AutoNavServer/assets/drl/generate_map_files'
+elif sys.platform == "darwin":
+    ASSET_PATH = "/Users/maximkudryashov/Projects/AutoNav/AutoNavServer/assets/drl/generate_map_files"
 else:
     print("SYSTEM NOT SUPPORTED. EXITING")
     exit()

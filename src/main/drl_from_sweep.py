@@ -17,6 +17,9 @@ if sys.platform == "win32":
 elif sys.platform == "linux" or sys.platform == "linux2":
     path = '/home/jovyan/workspace/AutoNavServer/assets/testing/FRC2023Map.json'
     logger_path = '/home/jovyan/workspace/AutoNavServer/output/logs'
+elif sys.platform == "darwin":
+    path = "/Users/maximkudryashov/Projects/AutoNav/AutoNavServer/assets/testing/BasicMap.json"
+    logger_path = "/Users/maximkudryashov/Projects/AutoNav/AutoNavServer/output/logs"
 else:
     print("SYSTEM NOT SUPPORTED. EXITING")
     exit()
