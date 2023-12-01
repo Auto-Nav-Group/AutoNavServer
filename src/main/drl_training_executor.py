@@ -139,6 +139,7 @@ class TrainingExecutor:
             closer_weight = config.closer_weight
             closer_o_weight = config.closer_o_weight
         #noise = OUNoise(ACTION_DIM, max_sigma=start_noise, min_sigma=END_NOISE, decay_period=noise_decay_steps)
+        self.sys_logs.log("Active device: " + str(DEVICE))
         noise = EGreedyNoise(ACTION_DIM, max_sigma=start_noise, min_sigma=END_NOISE, decay_period=noise_decay_steps)
         if self.plotter is None and not test:
             self.plotter = Model_Plotter(total_ts, plotter_display, self.network.mem)
