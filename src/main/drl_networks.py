@@ -79,7 +79,7 @@ class TD3(object):
             a = self.l3(a)
             a = torch.tanh(a)
             a = noise.get_action(a)
-            a = torch.tanh(torch.FloatTensor(a).to(DEVICE))
+            a = torch.tanh(torch.FloatTensor(a, device=DEVICE))
             return a
 
     class Critic(nn.Module):
@@ -370,7 +370,7 @@ class TD3(object):
         eval_set = []
         for i in range(eval_episodes):
             state, dist, min_dist = venv.reset()
-            state = torch.FloatTensor(state).to(self.device)
+            state = torch.FloatTensor(state, device=self.device)
             eval_set.append([state, dist, min_dist])
         self.eval_set = eval_set
 
@@ -389,7 +389,7 @@ class TD3(object):
                 next_state, collision, done, achieved_goal, dist_traveled, min_dist = venv.step(action)
                 reward, vw, avw, tw, aw, caw, cw = rewardfunc(next_state[1], min_dist, next_state[0], action[0], action[1], step)
                 ep_reward += reward
-                state = torch.FloatTensor(next_state).to(self.device)
+                state = torch.FloatTensor(next_state, device=self.device)
                 if done:
                     break
                 if achieved_goal:
@@ -426,7 +426,7 @@ class SAC(object):
             x = self.fc3(x)
             x = torch.tanh(x)
             x = noise.get_action(x)
-            x = torch.FloatTensor(x).to(DEVICE)
+            x = torch.FloatTensor(x, device=DEVICE)
             return self.max_action * torch.tanh(x)
 
         '''def sample(self, state):
@@ -533,7 +533,7 @@ class SAC(object):
         self.target_actor.load_state_dict(self.actor.state_dict())
 
     def select_action(self, state):
-        state = torch.FloatTensor(state).to(self.device)
+        state = torch.FloatTensor(state, device=self.device)
         action = self.actor(state).cpu().data.numpy()
         return action
 
@@ -646,7 +646,7 @@ class SAC(object):
         eval_set = []
         for i in range(eval_episodes):
             state, dist, min_dist = venv.reset()
-            state = torch.FloatTensor(state).to(self.device)
+            state = torch.FloatTensor(state, device=self.device)
             eval_set.append([state, dist, min_dist])
         self.eval_set = eval_set
 
@@ -665,7 +665,7 @@ class SAC(object):
                 next_state, collision, done, achieved_goal, dist_traveled, min_dist = venv.step(action)
                 reward, vw, avw, tw, aw, caw, cw = rewardfunc(next_state[1], min_dist, next_state[0], action[0], action[1], step)
                 ep_reward += reward
-                state = torch.FloatTensor(next_state).to(self.device)
+                state = torch.FloatTensor(next_state, device=self.device)
                 if done:
                     break
                 if achieved_goal:

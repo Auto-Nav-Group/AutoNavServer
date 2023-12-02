@@ -159,17 +159,18 @@ class TrainingExecutor:
             doneconversion = lambda x: 0 if x is True else 1
             while circle is False:
                 state, distance, min_dist, circle = env.debug_circle_reset()
-                state = torch.FloatTensor(state).to(self.network.device)
+                state = torch.FloatTensor(state, device=self.network.device)
                 if circle is True:
                     break
                 for ts in range(100):
-                    action = torch.FloatTensor([0, 1]).to(self.network.device)
+                    action = torch.FloatTensor([0, 1], device=self.network.device)
                     next_state, collision, done, achieved_goal, dist_traveled, min_dist = env.step(action)
                     reward, vw, avw, tw, aw, caw, cw = rewardfunc.get_reward(next_state[1], min_dist, next_state[0], action[0],
                                                                     action[1], ts)
-                    pretrain_mem.push(state, action, torch.FloatTensor(next_state).to(self.network.device), torch.FloatTensor([reward.item()]).to(self.network.device), torch.FloatTensor([doneconversion(done)]).to(self.network.device))
+                    next_state = torch.FloatTensor(next_state, device=self.network.device)
+                    pretrain_mem.push(state, action, next_state, torch.FloatTensor([reward.item()], device=self.network.device), torch.FloatTensor([doneconversion(done)], device=self.network.device))
                     total += 1
-                    state = torch.FloatTensor(next_state).to(self.network.device)
+                    state = next_state
                     if done:
                         break
             self.network.update_parameters(total, total, mem=pretrain_mem)
@@ -178,7 +179,7 @@ class TrainingExecutor:
             state, initdist, min_dist, circle_visualizer.shouldshow = env.debug_circle_reset()
         else:
             state, initdist, min_dist = env.reset(reload=DEBUG_SAME_SITUATION)
-        state = torch.FloatTensor(state).to(DEVICE)
+        state = torch.FloatTensor(state, device=self.network.device)
         noise.reset()
         episode_reward = 0
         episode_vw = 0
@@ -208,7 +209,7 @@ class TrainingExecutor:
             if not DEBUG_CIRCLE:
                 action = self.network.get_action_with_noise(nstate, noise)
             else:
-                action = torch.FloatTensor([0,1]).to(self.network.device)
+                action = torch.FloatTensor([0,1], device=self.network.device)
             actions.append(action)
             states.append(state)
             if DEBUG_CIRCLE:
@@ -217,7 +218,7 @@ class TrainingExecutor:
             a_in = action
             a_in[1] = (a_in[1]+1)/2
             if not OPTIMIZE:
-                a_in = torch.FloatTensor([0,1]).to(self.network.device)
+                a_in = torch.FloatTensor([0,1], device=self.network.device)
             next_state, collision, done, achieved_goal, dist_traveled, min_dist = env.step(a_in)
             if ep_steps >= max_steps-1:
                 done = True
@@ -225,7 +226,8 @@ class TrainingExecutor:
             reward, vw, avw, tw, aw, caw, cw = rewardfunc.get_reward(next_state[1], min_dist, next_state[0], action[0], action[1], ep_steps)
             #reward, vw, avw, aw = self.get_reward_beta(done, collision, achieved_goal, next_state[1], next_state[0])
             rewards.append(reward)
-            self.network.add_to_memory(state, action.to(DEVICE), torch.tensor(next_state).to(DEVICE), torch.tensor([reward]).to(DEVICE), done)
+            next_state = torch.FloatTensor(next_state, device=self.network.device)
+            self.network.add_to_memory(state, action.to(DEVICE), next_state, torch.tensor([reward], self.network.device), done)
             episode_reward += reward
             episode_vw += vw
             episode_avw += avw
@@ -235,7 +237,7 @@ class TrainingExecutor:
             episode_caw += caw
             episode_x.append(next_state[2])
             episode_y.append(next_state[3])
-            state = torch.FloatTensor(next_state).to(DEVICE)
+            state = next_state
             #visualizer.update(episode_x[ep_steps], episode_y[ep_steps], self.network.critic.forward((states[ep_steps], actions[ep_steps])))
             ep_steps+=1
             if collision is True:
