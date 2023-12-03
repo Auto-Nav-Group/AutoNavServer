@@ -639,7 +639,9 @@ class Normalizer:
             (2*state[4]/self.map.size.width),
             (2*state[5]/self.map.size.height),
             state[6],
-            state[7]
+            state[7],
+            state[8]/self.map.size.width,
+            state[9]/self.map.size.height
         ]
         return torch.FloatTensor(nstate)
 

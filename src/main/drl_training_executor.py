@@ -17,7 +17,7 @@ POLICY_FREQ = 12
 VISUALIZER_ENABLED = False
 OPTIMIZE = True
 
-STATE_DIM = 8
+STATE_DIM = 10
 ACTION_DIM = 2
 
 DEBUG_SAME_SITUATION = False
@@ -46,7 +46,7 @@ hdg_decay_function = lambda x: ANGLE_DECAY**(ANGLE_THRESH*x)
 
 START_NOISE = 1
 END_NOISE = 0.1
-NOISE_DECAY_STEPS = 20000
+NOISE_DECAY_STEPS = 360000
 
 BASE_LOGGER_CONFIG = {
     "batch_size": BATCH_SIZE,
@@ -159,16 +159,16 @@ class TrainingExecutor:
             doneconversion = lambda x: 0 if x is True else 1
             while circle is False:
                 state, distance, min_dist, circle = env.debug_circle_reset()
-                state = torch.FloatTensor(state, device=self.network.device)
+                state = torch.tensor(state, device=self.network.device)
                 if circle is True:
                     break
                 for ts in range(100):
-                    action = torch.FloatTensor([0, 1], device=self.network.device)
+                    action = torch.tensor([0, 1], device=self.network.device)
                     next_state, collision, done, achieved_goal, dist_traveled, min_dist = env.step(action)
                     reward, vw, avw, tw, aw, caw, cw = rewardfunc.get_reward(next_state[1], min_dist, next_state[0], action[0],
                                                                     action[1], ts)
-                    next_state = torch.FloatTensor(next_state, device=self.network.device)
-                    pretrain_mem.push(state, action, next_state, torch.FloatTensor([reward.item()], device=self.network.device), torch.FloatTensor([doneconversion(done)], device=self.network.device))
+                    next_state = torch.tensor(next_state, device=self.network.device)
+                    pretrain_mem.push(state, action, next_state, torch.tensor([reward.item()], device=self.network.device), torch.tensor([doneconversion(done)], device=self.network.device))
                     total += 1
                     state = next_state
                     if done:
@@ -179,7 +179,7 @@ class TrainingExecutor:
             state, initdist, min_dist, circle_visualizer.shouldshow = env.debug_circle_reset()
         else:
             state, initdist, min_dist = env.reset(reload=DEBUG_SAME_SITUATION)
-        state = torch.FloatTensor(state, device=self.network.device)
+        state = torch.tensor(state, device=self.network.device)
         noise.reset()
         episode_reward = 0
         episode_vw = 0
@@ -209,7 +209,7 @@ class TrainingExecutor:
             if not DEBUG_CIRCLE:
                 action = self.network.get_action_with_noise(nstate, noise)
             else:
-                action = torch.FloatTensor([0,1], device=self.network.device)
+                action = torch.tensor([0,1], device=self.network.device)
             actions.append(action)
             states.append(state)
             if DEBUG_CIRCLE:
@@ -218,7 +218,7 @@ class TrainingExecutor:
             a_in = action
             a_in[1] = (a_in[1]+1)/2
             if not OPTIMIZE:
-                a_in = torch.FloatTensor([0,1], device=self.network.device)
+                a_in = torch.tensor([0,1], device=self.network.device)
             next_state, collision, done, achieved_goal, dist_traveled, min_dist = env.step(a_in)
             if ep_steps >= max_steps-1:
                 done = True
@@ -226,8 +226,8 @@ class TrainingExecutor:
             reward, vw, avw, tw, aw, caw, cw = rewardfunc.get_reward(next_state[1], min_dist, next_state[0], action[0], action[1], ep_steps)
             #reward, vw, avw, aw = self.get_reward_beta(done, collision, achieved_goal, next_state[1], next_state[0])
             rewards.append(reward)
-            next_state = torch.FloatTensor(next_state, device=self.network.device)
-            self.network.add_to_memory(state, action.to(DEVICE), next_state, torch.tensor([reward], self.network.device), done)
+            next_state = torch.tensor(next_state, device=self.network.device)
+            self.network.add_to_memory(state, action.to(DEVICE), next_state, torch.tensor([reward], device=self.network.device), done)
             episode_reward += reward
             episode_vw += vw
             episode_avw += avw
@@ -285,7 +285,7 @@ class TrainingExecutor:
                     visualizer.clear()
                     visualizer.update(episode_x, episode_y, action_q)
                     visualizer.start(state[2], state[3], state[4], state[5]'''
-                state = torch.FloatTensor(state).to(DEVICE)
+                state = torch.tensor(state, device=self.network.device)
                 noise.reset()
                 episode_reward = 0
                 episode_vw = 0

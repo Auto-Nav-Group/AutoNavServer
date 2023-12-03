@@ -24,23 +24,23 @@ else:
     exit()
 FILE_NAME = "SampleModel"
 # EPISODES = 30000
-
+torch.backends.cudnn.benchmark = True
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-ACTOR_LAYER_1 = 128
+ACTOR_LAYER_1 = 64
 ACTOR_LAYER_2 = 64
 
-ACTOR_LR = 0.0007
-ACTOR_LR_STEP_SIZE = 950000
+ACTOR_LR = 4e-4
+ACTOR_LR_STEP_SIZE = 1000000
 ACTOR_LR_GAMMA = 0.1
 ACTOR_LR_WEIGHT_DECAY = 0.0001
 
-CRITIC_LAYER_1 = 256
-CRITIC_LAYER_2 = 128
+CRITIC_LAYER_1 = 512
+CRITIC_LAYER_2 = 64
 
-CRITIC_LR = 0.0001
-CRITIC_LR_STEP_SIZE = 4000000
+CRITIC_LR = 4e-4
+CRITIC_LR_STEP_SIZE = 1000000
 CRITIC_LR_GAMMA = 0.1
 CRITIC_LR_WEIGHT_DECAY = 0.0001
 
@@ -48,7 +48,7 @@ POLICY_LAYER_1 = 128
 
 START_WEIGHT_THRESHOLD = 3e-3
 GAMMA = 0.9999
-TAU = 0.005
+TAU = 0.004
 
 
 
@@ -79,7 +79,7 @@ class TD3(object):
             a = self.l3(a)
             a = torch.tanh(a)
             a = noise.get_action(a)
-            a = torch.tanh(torch.FloatTensor(a, device=DEVICE))
+            a = torch.tanh(torch.tensor(a, device=DEVICE))
             return a
 
     class Critic(nn.Module):
@@ -187,11 +187,11 @@ class TD3(object):
 
         # self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=config.actor_lr_step_size, gamma=config.actor_lr_gamma)
         # self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=config.critic_lr_step_size, gamma=config.critic_lr_gamma)
-        self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=actor_lr_step_size, gamma=actor_lr_gamma)#ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs",
+        #self.actor_lr_scheduler = StepLR(self.actor_optim, step_size=actor_lr_step_size, gamma=actor_lr_gamma)#ReduceLROnPlateau(self.actor_optim, "max", threshold=10, threshold_mode="abs",
 
                                                     #patience=5, factor=actor_lr_gamma)
 
-        self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=critic_lr_step_size, gamma=critic_lr_gamma)#ReduceLROnPlateau(self.critic_optim, "max", threshold=10, threshold_mode="abs",
+        #self.critic_lr_scheduler = StepLR(self.critic_optim, step_size=critic_lr_step_size, gamma=critic_lr_gamma)#ReduceLROnPlateau(self.critic_optim, "max", threshold=10, threshold_mode="abs",
                                                      #patience=5, factor=critic_lr_gamma)
         self.eval_set = []
 
@@ -240,7 +240,7 @@ class TD3(object):
     def add_to_memory(self, state, action, next_state, reward, done):
         d = lambda x: 0 if x is True else 1
         self.mem.push(self.normalize_state(state), action, self.normalize_state(next_state), reward,
-                      torch.FloatTensor([d(done)]))
+                      torch.tensor([d(done)]))
 
     def update_parameters(self, iters, batch_size=None, mem=None):
         c_loss = 0
@@ -304,8 +304,8 @@ class TD3(object):
             else:
                 self.soft_update(self.critic_target, self.critic, self.config.tau)
 
-            self.critic_lr_scheduler.step()
-            self.actor_lr_scheduler.step()
+            #self.critic_lr_scheduler.step()
+            #self.actor_lr_scheduler.step()
             self.update_steps += 1
             c_loss += critic_loss.item()
             a_loss += self.actor_loss.item()
@@ -370,7 +370,7 @@ class TD3(object):
         eval_set = []
         for i in range(eval_episodes):
             state, dist, min_dist = venv.reset()
-            state = torch.FloatTensor(state, device=self.device)
+            state = torch.tensor(state, device=self.device)
             eval_set.append([state, dist, min_dist])
         self.eval_set = eval_set
 
@@ -389,7 +389,7 @@ class TD3(object):
                 next_state, collision, done, achieved_goal, dist_traveled, min_dist = venv.step(action)
                 reward, vw, avw, tw, aw, caw, cw = rewardfunc(next_state[1], min_dist, next_state[0], action[0], action[1], step)
                 ep_reward += reward
-                state = torch.FloatTensor(next_state, device=self.device)
+                state = torch.tensor(next_state, device=self.device)
                 if done:
                     break
                 if achieved_goal:
@@ -426,7 +426,7 @@ class SAC(object):
             x = self.fc3(x)
             x = torch.tanh(x)
             x = noise.get_action(x)
-            x = torch.FloatTensor(x, device=DEVICE)
+            x = torch.tensor(x, device=DEVICE)
             return self.max_action * torch.tanh(x)
 
         '''def sample(self, state):
@@ -533,7 +533,7 @@ class SAC(object):
         self.target_actor.load_state_dict(self.actor.state_dict())
 
     def select_action(self, state):
-        state = torch.FloatTensor(state, device=self.device)
+        state = torch.tensor(state, device=self.device)
         action = self.actor(state).cpu().data.numpy()
         return action
 
@@ -574,7 +574,7 @@ class SAC(object):
     def add_to_memory(self, state, action, next_state, reward, done):
         d = lambda x: 0 if x is True else 1
         self.mem.push(self.normalize_state(state), action, self.normalize_state(next_state), reward,
-                      torch.FloatTensor([d(done)]))
+                      torch.tensor([d(done)]))
 
     def update_parameters(self, iters, batch_size=None, mem=None):
         if mem is None: mem = self.mem
@@ -646,7 +646,7 @@ class SAC(object):
         eval_set = []
         for i in range(eval_episodes):
             state, dist, min_dist = venv.reset()
-            state = torch.FloatTensor(state, device=self.device)
+            state = torch.tensor(state, device=self.device)
             eval_set.append([state, dist, min_dist])
         self.eval_set = eval_set
 
@@ -665,7 +665,7 @@ class SAC(object):
                 next_state, collision, done, achieved_goal, dist_traveled, min_dist = venv.step(action)
                 reward, vw, avw, tw, aw, caw, cw = rewardfunc(next_state[1], min_dist, next_state[0], action[0], action[1], step)
                 ep_reward += reward
-                state = torch.FloatTensor(next_state, device=self.device)
+                state = torch.tensor(next_state, device=self.device)
                 if done:
                     break
                 if achieved_goal:
