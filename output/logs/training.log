@@ -1,12 +1,12 @@
-16:23:44 | LOG | Started logging session
-16:23:44 | LOG | System details: Windows-10-10.0.19041-SP0
-16:23:44 | LOG | Hostname: FLIDAR-PC, IP: 192.168.56.1
-16:24:23 | LOG | Training session started
-16:24:23 | LOG | Training details:
-16:24:23 | LOG | Total timesteps: 4000000
-16:24:23 | LOG | Max steps: 100
-16:24:23 | LOG | Batch size: 40
-16:24:23 | LOG | Start timestep: 0
-16:24:23 | LOG | Config: None
-16:24:23 | LOG | Is test: False
-20:24:26 | LOG | Active device: cuda
+ 8:15:36 | LOG | Started logging session
+ 8:15:36 | LOG | System details: Windows-10-10.0.19041-SP0
+ 8:15:36 | LOG | Hostname: FLIDAR-PC, IP: 192.168.56.1
+ 8:15:36 | LOG | Training session started
+ 8:15:36 | LOG | Training details:
+ 8:15:36 | LOG | Total timesteps: 10000
+ 8:15:36 | LOG | Max steps: 100
+ 8:15:36 | LOG | Batch size: 64
+ 8:15:36 | LOG | Start timestep: 0
+ 8:15:36 | LOG | Config: None
+ 8:15:36 | LOG | Is test: False
+12:15:38 | LOG | Active device: cuda

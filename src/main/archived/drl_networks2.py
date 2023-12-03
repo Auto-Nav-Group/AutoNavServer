@@ -14,7 +14,7 @@ from torch.cuda.amp import GradScaler, autocast
 import torch.optim as optim
 
 if sys.platform == "win32":
-    FILE_LOCATION = "G:/Projects/AutoNav/AutoNavServer/assets/drl/models"
+    FILE_LOCATION = "/assets/drl/models"
 elif sys.platform == "linux" or sys.platform == "linux2":
     FILE_LOCATION = "/home/jovyan/workspace/AutoNavServer/assets/drl/models"
 elif sys.platform == "darwin":
@@ -24,12 +24,12 @@ else:
     exit()
 FILE_NAME = "SampleModel"
 # EPISODES = 30000
-torch.backends.cudnn.benchmark = True
+#torch.backends.cudnn.benchmark = True
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-ACTOR_LAYER_1 = 64
-ACTOR_LAYER_2 = 64
+ACTOR_LAYER_1 = 512
+ACTOR_LAYER_2 = 512
 
 ACTOR_LR = 4e-4
 ACTOR_LR_STEP_SIZE = 1000000
@@ -37,7 +37,7 @@ ACTOR_LR_GAMMA = 0.1
 ACTOR_LR_WEIGHT_DECAY = 0.0001
 
 CRITIC_LAYER_1 = 512
-CRITIC_LAYER_2 = 64
+CRITIC_LAYER_2 = 512
 
 CRITIC_LR = 4e-4
 CRITIC_LR_STEP_SIZE = 1000000

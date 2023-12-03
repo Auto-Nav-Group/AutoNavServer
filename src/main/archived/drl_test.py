@@ -9,8 +9,8 @@ import time
 
 
 if sys.platform == "win32":
-    path = "G:/Projects/AutoNav/AutoNavServer/assets/testing/BasicMap.json"
-    logger_path = "G:\Projects\AutoNav\AutoNavServer\output\logs"
+    path = "/assets/testing/BasicMap.json"
+    logger_path = "/output/logs"
 elif sys.platform == "linux" or sys.platform == "linux2":
     path = "/home/jovyan/workspace/AutoNavServer/assets/testing/BasicMap.json"
     logger_path = "/home/jovyan/workspace/AutoNavServer/output/logs"
@@ -37,7 +37,8 @@ DRL_VENV = RobotVEnv(map=mapobj, assets_path=ASSET_PATH)
 
 te = TrainingExecutor(mapobj, logger_path)
 #te.train(DRL_VENV, plotter_display=False)
-while True:
+te.train(DRL_VENV, plotter_display=False)
+"""while True:
     inp = input("T - Train\n"
           "L - Load\n"
                 "R - Run\n")
@@ -51,4 +52,4 @@ while True:
         te.train(DRL_VENV, start_ts=e, plotter_display=False)
     elif inp == "R":
         te.train(DRL_VENV, test=True)
-    time.sleep(1)
+    time.sleep(1)"""

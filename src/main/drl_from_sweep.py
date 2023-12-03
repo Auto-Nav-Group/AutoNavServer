@@ -1,7 +1,6 @@
 import sys
 import os
 import shutil
-from drl_training_executor import TrainingExecutor
 from generate_urdf_file_map import from_map, ASSET_PATH
 from drl_venv import RobotVEnv#DRL_VENV
 from map import Map
