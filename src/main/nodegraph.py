@@ -93,49 +93,49 @@ class NodeGraph:
             "edges" : edgestrs
         }
 
-    class Node:
-        def __init__(self, location):
-            self.Loc = location
-            self.Edges = []
-        def to_json(self):
-            edges = []
-            for edge in self.Edges:
-                edges.append(edge.to_json())
-            dictionary = {
-                "Type" : "Node",
-                "Location" : self.Loc.unpack(),
-                "Edges" : edges
-            }
-            return json.dumps(dictionary)
-        def to_compact_json(self):
-            return json.dumps({
-                "Type" : "Node",
-                "Location" : self.Loc.unpack()
-            })
-    class Edge:
-        def __init__(self, node1, node2, weight):
-            self.loc1 = node1.Loc
-            self.loc2 = node2.Loc
-            self.weight = weight
-            #TODO: Change start location and end location to endpoints and add a function to get the other point.
+class Node:
+    def __init__(self, location):
+        self.Loc = location
+        self.Edges = []
+    def to_json(self):
+        edges = []
+        for edge in self.Edges:
+            edges.append(edge.to_json())
+        dictionary = {
+            "Type" : "Node",
+            "Location" : self.Loc.unpack(),
+            "Edges" : edges
+        }
+        return json.dumps(dictionary)
+    def to_compact_json(self):
+        return json.dumps({
+            "Type" : "Node",
+            "Location" : self.Loc.unpack()
+        })
+class Edge:
+    def __init__(self, node1, node2, weight):
+        self.loc1 = node1.Loc
+        self.loc2 = node2.Loc
+        self.weight = weight
+        #TODO: Change start location and end location to endpoints and add a function to get the other point.
 
-        @staticmethod
-        def from_points(loc1, loc2, weight):
-            return NodeGraph.Edge(NodeGraph.Node(loc1), NodeGraph.Node(loc2), weight)
+    @staticmethod
+    def from_points(loc1, loc2, weight):
+        return NodeGraph.Edge(NodeGraph.Node(loc1), NodeGraph.Node(loc2), weight)
 
-        @staticmethod
-        def weight_from_points(loc1, loc2):
-            return loc1.distance(loc2)
+    @staticmethod
+    def weight_from_points(loc1, loc2):
+        return loc1.distance(loc2)
 
-        def other_loc(self, loc):
-            if loc != self.loc1:
-                return self.loc1
-            if loc != self.loc2:
-                return self.loc2
-        def to_json(self):
-            return {
-                "Type" : "Edge",
-                "Location1" : self.loc1.unpack(),
-                "Location2" : self.loc2.unpack(),
-                "Weight" : self.weight
-            }
+    def other_loc(self, loc):
+        if loc != self.loc1:
+            return self.loc1
+        if loc != self.loc2:
+            return self.loc2
+    def to_json(self):
+        return {
+            "Type" : "Edge",
+            "Location1" : self.loc1.unpack(),
+            "Location2" : self.loc2.unpack(),
+            "Weight" : self.weight
+        }
